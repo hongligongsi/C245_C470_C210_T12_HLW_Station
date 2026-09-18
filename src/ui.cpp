@@ -49,8 +49,8 @@ Palette Pal;
 #define W_VIP_X2 230
 #define W_CH_Y 50
 #define W_CH_VAL_Y 60
-#define W_CH_X0 8
-#define W_CH_DX 68
+#define W_CH_X0 6
+#define W_CH_DX 60
 #define W_BIG_X 192
 #define W_BIG_Y 50
 #define W_BIG_SCALE 7
@@ -72,23 +72,52 @@ Palette Pal;
 static void applyTheme() {
   if (Cfg.theme == THEME_LIGHT) {
     Pal.bg = COL_WHITE;
+    Pal.panel = RGB565(0xE6, 0xEA, 0xEE); // 浅灰蓝顶栏
     Pal.fg = COL_BLACK;
     Pal.accent = COL_BLUE;
     Pal.ok = COL_DARKGREEN;
     Pal.warn = COL_ORANGE;
-    Pal.grid = COL_GRAY;
+    Pal.grid = RGB565(0x90, 0x94, 0x98);
+    Pal.gridMin = RGB565(0xDC, 0xDE, 0xE2);
     Pal.danger = COL_RED;
     Pal.info = COL_NAVY;
+    Pal.vCol = COL_BLUE;                 // 深蓝, 白底可读
+    Pal.cCol = RGB565(0xA8, 0x68, 0x00); // 暗金
+    Pal.pCol = RGB565(0x88, 0x00, 0x88); // 紫
+    Pal.pill = RGB565(0xCF, 0xE8, 0xD2); // 浅绿胶囊
   } else {
     Pal.bg = COL_BLACK;
+    Pal.panel = RGB565(0x14, 0x18, 0x20); // 近黑藏青顶栏
     Pal.fg = COL_WHITE;
     Pal.accent = COL_YELLOW;
     Pal.ok = COL_GREEN;
     Pal.warn = COL_ORANGE;
     Pal.grid = COL_DARKGREEN;
+    Pal.gridMin = RGB565(0x1C, 0x24, 0x20);
     Pal.danger = COL_RED;
     Pal.info = COL_CYAN;
+    Pal.vCol = COL_BLUE;
+    Pal.cCol = COL_YELLOW;
+    Pal.pCol = COL_MAGENTA;
+    Pal.pill = COL_DARKGREEN;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 8x8 单色状态图标 (顶栏, 状态变化才重绘)
+// ---------------------------------------------------------------------------
+static const uint8_t ICON_HOURGLASS[8] = {0xFF, 0x7E, 0x3C, 0x18,
+                                          0x18, 0x3C, 0x7E, 0xFF};
+static const uint8_t ICON_MOON[8] = {0x3C, 0x78, 0x70, 0x60,
+                                     0x70, 0x78, 0x3C, 0x00};
+static const uint8_t ICON_SPEAKER[8] = {0x18, 0x3C, 0x7E, 0xE0,
+                                        0xE0, 0x7E, 0x3C, 0x18};
+
+static void drawIcon(int16_t x, int16_t y, const uint8_t *bmp, uint16_t col) {
+  for (uint8_t r = 0; r < 8; r++)
+    for (uint8_t c = 0; c < 8; c++)
+      if (bmp[r] & (0x80 >> c))
+        Lcd.setPixel(x + c, y + r, col);
 }
 
 static void drawFixed3(int16_t x, int16_t y, int16_t value, uint8_t scale,
@@ -106,6 +135,7 @@ void Ui::invalidate() {
   _lastPage = 0xFF;
   _lastStyle = 0xFF;
   _lastTheme = 0xFF;
+  _lastHdrIcons = 0xFF;
   _histDirty = true;
 }
 
@@ -120,17 +150,21 @@ void Ui::begin() {
   _lastTheme = Cfg.theme;
   _lastStyle = Cfg.style;
 
-  // 开机画面
+  // 开机画面: 双线框 + 标题
   Lcd.clear(Pal.bg);
-  const char *t1 = "T12/JBC";
+  uint8_t ts = (LCD_W >= 200) ? 3 : 2; // 标题字号
+  Lcd.drawRect(6, 6, LCD_W - 12, LCD_H - 12, Pal.info);
+  Lcd.drawRect(9, 9, LCD_W - 18, LCD_H - 18, Pal.grid);
+  const char *t1 = "T12/HLW";
   const char *t2 = "STATION";
-  Lcd.drawText((LCD_W - Lcd.textWidth(t1, 2)) / 2, LCD_H / 2 - 30, t1, Pal.info,
-               Pal.bg, 2);
-  Lcd.drawText((LCD_W - Lcd.textWidth(t2, 2)) / 2, LCD_H / 2 - 6, t2, Pal.fg,
-               Pal.bg, 2);
+  int16_t cy = LCD_H / 2;
+  Lcd.drawText((LCD_W - Lcd.textWidth(t1, ts)) / 2, cy - 7 * ts - 8, t1,
+               Pal.info, Pal.bg, ts);
+  Lcd.drawText((LCD_W - Lcd.textWidth(t2, ts)) / 2, cy + 4, t2, Pal.fg, Pal.bg,
+               ts);
   const char *t3 = "V1.7  HEAT UP";
-  Lcd.drawText((LCD_W - Lcd.textWidth(t3, 1)) / 2, LCD_H / 2 + 24, t3, Pal.grid,
-               Pal.bg, 1);
+  Lcd.drawText((LCD_W - Lcd.textWidth(t3, 1)) / 2, cy + 7 * ts + 12, t3,
+               Pal.grid, Pal.bg, 1);
   Lcd.flushAll();
   delay(1200);
 
@@ -142,7 +176,8 @@ void Ui::begin() {
 
 // 绘制主页静态框架
 void Ui::drawStaticFrame(bool curve) {
-  Lcd.drawText(2, 1, "T12/JBC", Pal.grid, Pal.bg, 1);
+  Lcd.fillRect(0, 0, LCD_W, 10, Pal.panel);
+  Lcd.drawText(2, 1, "T12/HLW", Pal.fg, Pal.panel, 1);
   Lcd.drawHLine(0, 10, LCD_W, Pal.grid);
   Lcd.drawText(2, SET_Y, "SET", Pal.accent, Pal.bg, 1);
   if (!curve)
@@ -156,7 +191,7 @@ void Ui::drawStatus() {
   // 右上角模式/状态, 固定宽度槽位
   const int16_t slotW = 42;
   int16_t x = LCD_W - slotW - 1;
-  Lcd.fillRect(x, 0, slotW, 9, Pal.bg);
+  Lcd.fillRect(x, 0, slotW, 9, Pal.panel);
 
   const char *txt;
   uint16_t col;
@@ -197,7 +232,7 @@ void Ui::drawStatus() {
     }
   }
   int16_t w = Lcd.textWidth(txt, 1);
-  Lcd.drawText(x + slotW - w, 1, txt, col, Pal.bg, 1);
+  Lcd.drawText(x + slotW - w, 1, txt, col, Pal.panel, 1);
 }
 
 void Ui::drawBigTemp() {
@@ -280,7 +315,7 @@ void Ui::drawTelemetry(int16_t y1, int16_t y2) {
     uint16_t c =
         (Stn.vbus() < VBUS_UV_FAULT + 2.0f || Stn.vbus() > VBUS_OV_FAULT - 2.0f)
             ? Pal.danger
-            : Pal.info;
+            : Pal.vCol;
     Lcd.drawText(2, y1, buf, c, Pal.bg, 1);
     _lastVBus10 = v10;
   }
@@ -449,8 +484,8 @@ void Ui::drawCurve() {
   Lcd.drawRect(CUR_GX, CUR_GY, CUR_GW, CUR_GH, Pal.grid);
   Lcd.drawHLine(CUR_GX + 1, CUR_GY + CUR_GH / 2, CUR_GW - 2, Pal.grid);
 
-  uint16_t powCol = (Cfg.theme == THEME_LIGHT) ? COL_DARKGREEN : COL_GREEN;
-  uint16_t tmpCol = (Cfg.theme == THEME_LIGHT) ? COL_NAVY : COL_BLUE;
+  uint16_t powCol = Pal.ok;
+  uint16_t tmpCol = Pal.vCol;
 
   // 图例
   Lcd.drawText(CUR_GX + 2, CUR_GY + 1, "P", powCol, Pal.bg, 1);
@@ -461,6 +496,25 @@ void Ui::drawCurve() {
   int16_t plotW = CUR_GW - 2;
   int16_t plotH = CUR_GH - 10;
   int16_t plotYb = plotY0 + plotH - 1;
+
+  // 纵向网格 3 条(次级色)
+  for (uint8_t i = 1; i < 4; i++) {
+    int16_t x = plotX0 + (int16_t)(plotW - 1) * i / 4;
+    Lcd.drawVLine(x, plotY0, plotH, Pal.gridMin);
+  }
+
+  // 设定温度虚线参考线
+  if (Stn.tipPresent() &&
+      (Stn.mode() == MODE_HEAT || Stn.mode() == MODE_BOOST ||
+       Stn.mode() == MODE_STANDBY)) {
+    int16_t tmax = (Cfg.tempMax > 0 ? Cfg.tempMax : TEMP_MAX_C);
+    int16_t set = Stn.setTemp();
+    if (set > 0 && set <= tmax) {
+      int16_t sy = plotYb - (int32_t)set * (plotH - 1) / tmax;
+      for (int16_t x = plotX0; x < plotX0 + plotW - 4; x += 6)
+        Lcd.drawHLine(x, sy, 3, Pal.accent);
+    }
+  }
 
   int16_t prevPx = plotX0, prevPy = plotYb;
   int16_t prevTx = plotX0, prevTy = plotYb;
@@ -493,13 +547,17 @@ void Ui::drawStandard() {
 // 320x240 宽屏主页 (对齐参考机布局)
 // ---------------------------------------------------------------------------
 void Ui::drawWideFrame(bool curve) {
-  // 顶栏分隔线
-  Lcd.drawHLine(0, W_HDR_H, LCD_W, Pal.grid);
+  // 实色顶栏 + 下沿亮线
+  Lcd.fillRect(0, 0, LCD_W, W_HDR_H, Pal.panel);
+  Lcd.drawHLine(0, W_HDR_H, LCD_W, Pal.info);
 
   // V/I/P 标签
   Lcd.drawText(W_VIP_X0, W_VIP_LBL_Y, "VOLTAGE", Pal.grid, Pal.bg, 1);
   Lcd.drawText(W_VIP_X1, W_VIP_LBL_Y, "CURRENT", Pal.grid, Pal.bg, 1);
   Lcd.drawText(W_VIP_X2, W_VIP_LBL_Y, "POWER", Pal.grid, Pal.bg, 1);
+  // 列分隔线(标签行与数值行之间)
+  Lcd.drawVLine(W_VIP_X1 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
+  Lcd.drawVLine(W_VIP_X2 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
 
   // CH1/CH2/CH3 标签(当前槽颜色在 drawWideCh 覆盖)
   Lcd.drawText(W_CH_X0, W_CH_Y, "CH1", Pal.grid, Pal.bg, 1);
@@ -520,9 +578,38 @@ void Ui::drawWideTip() {
   uint8_t tt = (uint8_t)Stn.tipType();
   if (tt == _lastTipType)
     return;
-  Lcd.fillRect(2, 1, 90, W_HDR_H - 2, Pal.bg);
-  Lcd.drawText(4, 3, Stn.tipName(), Pal.info, Pal.bg, 2);
+  Lcd.fillRect(2, 1, 90, W_HDR_H - 2, Pal.panel);
+  Lcd.drawText(4, 2, Stn.tipName(), Pal.fg, Pal.panel, 2);
   _lastTipType = tt;
+}
+
+// 顶栏右侧: 沙漏(待机计时) / 月亮(休眠) / 喇叭(声音)
+void Ui::drawWideIcons() {
+  // bit0=声音  bit1=休眠闩锁  bit2=待机已启用(灰) bit3=待机进行中(亮)
+  uint8_t key = Cfg.soundOn ? 0x01 : 0x00;
+  if (Stn.holderSleep() || Stn.mode() == MODE_SLEEP)
+    key |= 0x02;
+  if (Cfg.standbyTimeMin > 0 && Stn.tipPresent() && Stn.mode() != MODE_FAULT) {
+    key |= (Stn.mode() == MODE_STANDBY) ? 0x0C : 0x04;
+  }
+  if (key == _lastHdrIcons)
+    return;
+  _lastHdrIcons = key;
+
+  const int16_t y = (W_HDR_H - 8) / 2;
+  Lcd.fillRect(248, 0, 72, W_HDR_H, Pal.panel);
+
+  if (key & 0x0C)
+    drawIcon(252, y, ICON_HOURGLASS, (key & 0x08) ? Pal.info : Pal.grid);
+  if (key & 0x02)
+    drawIcon(268, y, ICON_MOON, Pal.info);
+
+  // 喇叭: 开启带声波, 关闭打 X
+  drawIcon(290, y, ICON_SPEAKER, (key & 0x01) ? Pal.fg : Pal.grid);
+  if (key & 0x01)
+    Lcd.drawText(299, y, "))", Pal.fg, Pal.panel, 1);
+  else
+    Lcd.drawText(299, y, "X", Pal.danger, Pal.panel, 1);
 }
 
 void Ui::drawWideVIP() {
@@ -530,29 +617,29 @@ void Ui::drawWideVIP() {
 
   int16_t v10 = (int16_t)(Stn.vbus() * 10.0f);
   if (v10 != _lastVBus10) {
-    Lcd.fillRect(W_VIP_X0, W_VIP_VAL_Y, 100, 9, Pal.bg);
-    snprintf(buf, sizeof(buf), "%.1f V", Stn.vbus());
+    Lcd.fillRect(W_VIP_X0, W_VIP_VAL_Y, 100, 15, Pal.bg);
+    snprintf(buf, sizeof(buf), "%.1fV", Stn.vbus());
     uint16_t c =
         (Stn.vbus() < VBUS_UV_FAULT + 2.0f || Stn.vbus() > VBUS_OV_FAULT - 2.0f)
             ? Pal.danger
-            : COL_BLUE;
-    Lcd.drawText(W_VIP_X0, W_VIP_VAL_Y, buf, c, Pal.bg, 1);
+            : Pal.vCol;
+    Lcd.drawText(W_VIP_X0, W_VIP_VAL_Y, buf, c, Pal.bg, 2);
     _lastVBus10 = v10;
   }
 
   int16_t c100 = (int16_t)(Stn.current() * 100.0f);
   if (c100 != _lastCurr100) {
-    Lcd.fillRect(W_VIP_X1, W_VIP_VAL_Y, 100, 9, Pal.bg);
-    snprintf(buf, sizeof(buf), "%.2f A", Stn.current());
-    Lcd.drawText(W_VIP_X1, W_VIP_VAL_Y, buf, COL_YELLOW, Pal.bg, 1);
+    Lcd.fillRect(W_VIP_X1, W_VIP_VAL_Y, 104, 15, Pal.bg);
+    snprintf(buf, sizeof(buf), "%.2fA", Stn.current());
+    Lcd.drawText(W_VIP_X1, W_VIP_VAL_Y, buf, Pal.cCol, Pal.bg, 2);
     _lastCurr100 = c100;
   }
 
   int16_t p10 = (int16_t)(Stn.power() * 10.0f);
   if (p10 != _lastPwr10) {
-    Lcd.fillRect(W_VIP_X2, W_VIP_VAL_Y, 88, 9, Pal.bg);
-    snprintf(buf, sizeof(buf), "%.1f W", Stn.power());
-    Lcd.drawText(W_VIP_X2, W_VIP_VAL_Y, buf, COL_MAGENTA, Pal.bg, 1);
+    Lcd.fillRect(W_VIP_X2, W_VIP_VAL_Y, 88, 15, Pal.bg);
+    snprintf(buf, sizeof(buf), "%.1fW", Stn.power());
+    Lcd.drawText(W_VIP_X2, W_VIP_VAL_Y, buf, Pal.pCol, Pal.bg, 2);
     _lastPwr10 = p10;
   }
 }
@@ -567,15 +654,22 @@ void Ui::drawWideCh() {
   uint8_t idx = Stn.quickIdx();
   for (uint8_t i = 0; i < 3; i++) {
     int16_t x = W_CH_X0 + (int16_t)i * W_CH_DX;
-    uint16_t col = (i == idx) ? Pal.ok : Pal.grid;
+    bool act = (i == idx);
+    // 整块擦除(含胶囊外扩区)
+    Lcd.fillRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 28, Pal.bg);
+    if (act) {
+      // 当前通道: 高亮胶囊
+      Lcd.fillRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 27, Pal.pill);
+      Lcd.drawRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 27, Pal.ok);
+    }
+    uint16_t col = act ? Pal.ok : Pal.grid;
     char lb[4];
     snprintf(lb, sizeof(lb), "CH%d", i + 1);
-    Lcd.fillRect(x, W_CH_Y, W_CH_DX - 4, 8, Pal.bg);
-    Lcd.drawText(x, W_CH_Y, lb, col, Pal.bg, 1);
-    Lcd.fillRect(x, W_CH_VAL_Y, W_CH_DX - 4, 15, Pal.bg);
+    uint16_t lbBg = act ? Pal.pill : Pal.bg;
+    Lcd.drawText(x + 2, W_CH_Y, lb, col, lbBg, 1);
     char num[8];
     snprintf(num, sizeof(num), "%d", (int)Cfg.quickTemp[i]);
-    Lcd.drawText(x, W_CH_VAL_Y, num, col, Pal.bg, 2);
+    Lcd.drawText(x + 2, W_CH_VAL_Y, num, col, lbBg, 2);
     _lastCh[i] = Cfg.quickTemp[i];
   }
   _lastQuickIdx = idx;
@@ -666,9 +760,26 @@ void Ui::drawWideCurve() {
     snprintf(lb, sizeof(lb), "%d", (int)(25 * i));
     Lcd.drawText(W_CUR_X1 + 3, y - 3, lb, Pal.danger, Pal.bg, 1);
   }
+  // 纵向网格 7 条(次级色)
+  for (uint8_t i = 1; i < 8; i++) {
+    int16_t x = gx + (int16_t)(gw - 1) * i / 8;
+    Lcd.drawVLine(x, gy, gh, Pal.gridMin);
+  }
 
-  uint16_t powCol = (Cfg.theme == THEME_LIGHT) ? COL_DARKGREEN : COL_GREEN;
-  uint16_t tmpCol = (Cfg.theme == THEME_LIGHT) ? COL_NAVY : COL_BLUE;
+  // 设定温度虚线参考线
+  if (Stn.tipPresent() &&
+      (Stn.mode() == MODE_HEAT || Stn.mode() == MODE_BOOST ||
+       Stn.mode() == MODE_STANDBY)) {
+    int16_t set = Stn.setTemp();
+    if (set > 0 && set <= W_CUR_TMAX) {
+      int16_t sy = yb - (int32_t)set * (gh - 1) / W_CUR_TMAX;
+      for (int16_t x = gx; x < gx + gw - 5; x += 7)
+        Lcd.drawHLine(x, sy, 4, Pal.accent);
+    }
+  }
+
+  uint16_t powCol = Pal.ok;
+  uint16_t tmpCol = Pal.vCol;
 
   int16_t prevPx = gx, prevPy = yb, prevTx = gx, prevTy = yb;
   for (uint8_t k = 0; k < HIST_N; k++) {
@@ -769,6 +880,7 @@ void Ui::update() {
     _lastCurr100 = -1;
     _lastPwr10 = -1;
     _lastTipType = 0xFF;
+    _lastHdrIcons = 0xFF;
     _lastCh[0] = _lastCh[1] = _lastCh[2] = -1;
     _lastQuickIdx = 0xFF;
     _lastAmbient = -100;
@@ -780,7 +892,7 @@ void Ui::update() {
   if (page == 0) {
 #if LCD_W >= 200
     drawWideTip();
-    drawStatus();
+    drawWideIcons();
     drawWideBig();
     drawWideSet();
     drawWideVIP();

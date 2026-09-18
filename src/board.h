@@ -1,7 +1,7 @@
 /**
  * @file board.h
  * @brief 板级引脚与硬件参数定义
- *        依据 SCH_T12_JBC470-245-210_V1.7-高压版 原理图
+ *        依据 SCH_T12_HLW470-245-210_V1.7-高压版 原理图
  *
  * 主控: HC32F460JETA-LQFP48
  */
@@ -16,9 +16,9 @@
 #define PIN_ENC_A PA1 // EC11-A
 #define PIN_ENC_C PA2 // EC11-C  按键
 
-// JBC 手柄座 / 换芯 (U10, 33k 上拉, 低电平有效)
-#define PIN_JBC_SW PA3  // JBC_SW  换芯/支架
-#define PIN_JBC_SLE PA4 // JBC_SLE 休眠
+// HLW 手柄座 / 换芯 (U10, 33k 上拉, 低电平有效)
+#define PIN_HLW_SW PA3  // HLW_SW  换芯/支架
+#define PIN_HLW_SLE PA4 // HLW_SLE 休眠
 
 // 模拟输入
 #define PIN_GET_ID PA5      // GET_ID      手柄ID识别
@@ -86,6 +86,25 @@
 #define VBUS_OV_FAULT 50.5f  // 过压 V (48V 电源上限留余量)
 #define TEMP_FAULT_C 480.0f  // 超温保护
 #define CURRENT_FAULT_A 6.0f // 过流保护
+
+// PID 输出的"功率%"以该标称电压下的满功率为基准:
+// 实际占空比按 (NOMINAL_VBUS/Vbus)^2 前馈补偿(P=U^2/R),
+// 使 19V/24V/32V 等不同电源下的控温增益与实际功率保持一致。
+// 24V 时补偿系数=1(与旧行为完全相同), 可用 -DNOMINAL_VBUS=xx 覆盖。
+#ifndef NOMINAL_VBUS
+#define NOMINAL_VBUS 24.0f
+#endif
+// 前馈系数上限: 异常低压时限制占空比放大倍数(欠压故障本身会停热)
+#ifndef VFF_GAIN_MAX
+#define VFF_GAIN_MAX 4.0f
+#endif
+
+// 温度通道合理性检测: 加热占空比持续 >SENSOR_NO_RISE_DUTY 达 SENSOR_NO_RISE_MS
+// 而温度上升不足 SENSOR_NO_RISE_C -> 判温度信号异常(传感器短路/运放故障/MOS
+// 不加热)
+#define SENSOR_NO_RISE_DUTY 128          // >50% 占空比
+#define SENSOR_NO_RISE_MS (8UL * 1000UL) // 持续 8s
+#define SENSOR_NO_RISE_C 5.0f            // 温升不足 5C
 
 // ---------------------------------------------------------------------------
 // 控制参数

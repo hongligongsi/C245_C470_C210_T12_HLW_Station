@@ -115,6 +115,11 @@ private:
   uint8_t _duty = 0;
   float _integral = 0.0f;
   float _prevErr = 0.0f;
+  float _prevTipTemp = 25.0f; // 上周期测温(微分先行: 只对测量值微分)
+
+  // 加热无温升检测(温度通道合理性)
+  uint32_t _heatSinceMs = 0;   // 持续大功率加热起始时刻, 0=未在加热
+  float _heatStartTemp = 0.0f; // 该段加热起始温度
 
   // 计时/防抖
   uint32_t _lastSampleMs = 0;

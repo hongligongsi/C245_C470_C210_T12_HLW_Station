@@ -2,6 +2,10 @@
 .pio/
 .pioenvs/
 .piolibdeps/
+
+# ESP-IDF / CMake 误用产生的目录
+build/
+sdkconfig*
 *.bin
 *.elf
 *.hex

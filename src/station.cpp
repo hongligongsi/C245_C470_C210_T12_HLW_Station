@@ -41,8 +41,8 @@ void Station::begin() {
 
   // ---- 数字输入 ----
   pinMode(PIN_SLEEP, INPUT_PULLUP);
-  pinMode(PIN_JBC_SLE, INPUT_PULLUP);
-  pinMode(PIN_JBC_SW, INPUT_PULLUP);
+  pinMode(PIN_HLW_SLE, INPUT_PULLUP);
+  pinMode(PIN_HLW_SW, INPUT_PULLUP);
 #ifdef PIN_VIBRATION
   // 滚珠/震动开关(手柄内弹簧开关, 低有效): T12 震动唤醒用
   pinMode(PIN_VIBRATION, INPUT_PULLUP);
@@ -279,10 +279,10 @@ void Station::logicStep(uint32_t now) {
     _noTipSinceMs = 0;
   }
 
-  // --- 支架休眠 (T12 支架 或 JBC 休眠信号) ---
+  // --- 支架休眠 (T12 支架 或 HLW 休眠信号) ---
   // 信号持续 2s -> 置 _sleeping 闩锁(停热), 长按编码器解除
   bool slp =
-      (digitalRead(PIN_SLEEP) == LOW) || (digitalRead(PIN_JBC_SLE) == LOW);
+      (digitalRead(PIN_SLEEP) == LOW) || (digitalRead(PIN_HLW_SLE) == LOW);
   if (slp) {
     if (_sleepSinceMs == 0)
       _sleepSinceMs = now;
@@ -295,8 +295,8 @@ void Station::logicStep(uint32_t now) {
     _sleepSinceMs = 0;
   }
 
-  // --- JBC 换芯开关 ---
-  bool sw = digitalRead(PIN_JBC_SW) == LOW;
+  // --- HLW 换芯开关 ---
+  bool sw = digitalRead(PIN_HLW_SW) == LOW;
   if (sw && !_tipSwitchOpen) {
     if (_tipOffSinceMs == 0)
       _tipOffSinceMs = now;
@@ -427,34 +427,62 @@ void Station::controlStep(uint32_t now) {
   if (_mode != MODE_STANDBY)
     _standbySinceMs = 0;
 
+  // --- 温度通道合理性: 大功率持续加热却长期无温升 -> 锁故障(手动清除) ---
+  // 覆盖热电偶短路到地(零点跟踪会掩盖断线逻辑)、运放损坏、加热 MOS 失效
+  if (_duty > SENSOR_NO_RISE_DUTY) {
+    if (_heatSinceMs == 0) {
+      _heatSinceMs = now;
+      _heatStartTemp = _tipTemp;
+    } else if (now - _heatSinceMs > SENSOR_NO_RISE_MS &&
+               _tipTemp - _heatStartTemp < SENSOR_NO_RISE_C) {
+      _fault = FAULT_TIPSENSOR;
+      _mode = MODE_FAULT;
+      target = -1;
+    }
+  } else {
+    _heatSinceMs = 0; // 占空比回落即重新计时, 保温期断续加热不会误判
+  }
+
   // --- PID ---
   if (target < 0) {
     setHeater(0);
     _integral = 0.0f;
     _prevErr = 0.0f;
+    _prevTipTemp = _tipTemp;
+    _heatSinceMs = 0;
     return;
   }
 
   float err = (float)target - _tipTemp;
   float aerr = (err < 0.0f) ? -err : err;
-  float out; // 功率% 0..100
+  float out; // 功率% 0..100 (标称 NOMINAL_VBUS 电压下的满功率为基准)
   if (aerr > _pidBand) {
     // 温差大: 全速加热, 积分分离(不累加)
     out = 100.0f;
   } else {
-    _integral += _pidI * err;
-    if (_integral > _pidIlimit)
-      _integral = _pidIlimit;
-    if (_integral < -_pidIlimit)
-      _integral = -_pidIlimit;
-    float d = err - _prevErr;
-    out = _pidP * err + _integral + _pidD * d;
+    // 微分先行(derivative on measurement): 微分项只对测量温度求导,
+    // 快捷切温/改设定值时 err 突变不会产生微分冲击
+    float d = -(_tipTemp - _prevTipTemp);
+    float pd = _pidP * err + _pidD * d;
+    // 条件积分抗饱和(clamping): 试算后若积分会把输出继续推向饱和, 本轮不累加
+    float iNew = _integral + _pidI * err;
+    if (iNew > _pidIlimit)
+      iNew = _pidIlimit;
+    if (iNew < -_pidIlimit)
+      iNew = -_pidIlimit;
+    float cand = pd + iNew;
+    bool saturating =
+        (cand >= 100.0f && err > 0.0f) || (cand <= 0.0f && err < 0.0f);
+    if (!saturating)
+      _integral = iNew;
+    out = pd + _integral;
     if (out < 0.0f)
       out = 0.0f;
     if (out > 100.0f)
       out = 100.0f;
   }
   _prevErr = err;
+  _prevTipTemp = _tipTemp;
 
   // 软刹车: 过冲>5C 强制关断并清积分(早于 480C 硬保护)
   if (err < -5.0f) {
@@ -462,10 +490,25 @@ void Station::controlStep(uint32_t now) {
     _integral = 0.0f;
   }
 
-  // 功率上限
+  // 用户功率上限
   out *= (float)_powerLimitPct / 100.0f;
   if (out > 100.0f)
     out = 100.0f;
+
+  // 供电电压前馈: 加热丝功率 P=D*U^2/R, 占空比按 (NOM/Ubus)^2 补偿,
+  // 使同一 PID 输出在 19~32V 不同电源下的实际加热功率一致(IronOS/AxxSolder
+  // 同款)
+  if (_vbus >= 8.0f) {
+    float vff = NOMINAL_VBUS / _vbus;
+    vff *= vff;
+    if (vff > VFF_GAIN_MAX)
+      vff = VFF_GAIN_MAX;
+    out *= vff;
+    if (out > 100.0f)
+      out = 100.0f;
+  } else {
+    out = 0.0f; // 电压读数无效不加热(欠压检测同样会停热)
+  }
 
   uint8_t pwm = (uint8_t)(out * (float)PWM_MAX / 100.0f + 0.5f);
   setHeater(pwm);

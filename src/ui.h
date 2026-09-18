@@ -8,14 +8,20 @@
 
 // 主题调色板: 所有界面颜色取自此处, 切换主题即时生效
 struct Palette {
-  uint16_t bg;     // 背景
-  uint16_t fg;     // 普通文字
-  uint16_t accent; // 强调(设定温度/数值)
-  uint16_t ok;     // 就绪/正常
-  uint16_t warn;   // 加热/警告
-  uint16_t grid;   // 分隔线/次要
-  uint16_t danger; // 故障/无头
-  uint16_t info;   // 信息(休眠/遥测)
+  uint16_t bg;      // 背景
+  uint16_t panel;   // 顶栏/激活胶囊底色
+  uint16_t fg;      // 普通文字
+  uint16_t accent;  // 强调(设定温度/数值)
+  uint16_t ok;      // 就绪/正常
+  uint16_t warn;    // 加热/警告
+  uint16_t grid;    // 主分隔线/刻度
+  uint16_t gridMin; // 次级网格线
+  uint16_t danger;  // 故障/无头
+  uint16_t info;    // 信息(休眠/遥测)
+  uint16_t vCol;    // 电压语义色
+  uint16_t cCol;    // 电流语义色
+  uint16_t pCol;    // 功率语义色
+  uint16_t pill;    // 激活通道胶囊底
 };
 
 extern Palette Pal;
@@ -43,6 +49,7 @@ private:
   // --- 320x240 宽屏布局 (LCD_W>=200) ---
   void drawWideFrame(bool curve);
   void drawWideTip();
+  void drawWideIcons(); // 顶栏状态图标: 沙漏/月亮/喇叭
   void drawWideVIP();
   void drawWideCh();
   void drawWideBig();
@@ -79,6 +86,7 @@ private:
   int16_t _lastCurr100 = -1; // 宽屏: 0.01A
   int16_t _lastPwr10 = -1;   // 宽屏: 0.1W
   uint8_t _lastTipType = 0xFF;
+  uint8_t _lastHdrIcons = 0xFF; // 宽屏顶栏图标状态缓存
   int16_t _lastCh[3] = {-1, -1, -1};
   uint8_t _lastQuickIdx = 0xFF;
   int8_t _lastAmbient = -100;
