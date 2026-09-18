@@ -1,0 +1,23 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+*.bin
+*.elf
+*.hex
+*.map
+
+# 本地生成的编译数据库(含本机绝对路径, 可用 `pio run -t compiledb` 重新生成)
+compile_commands.json
+
+# 构建/调试日志
+*.log
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+
+# 本机编辑器配置(含绝对路径); 仅保留共享的 c_cpp_properties.json
+.vscode/settings.json

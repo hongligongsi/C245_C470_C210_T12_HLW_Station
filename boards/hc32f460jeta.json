@@ -1,0 +1,26 @@
+{
+  "name": "HC32F460JETA T12/JBC Soldering Station",
+  "url": "https://www.hdsc.com.cn/Category83-1487",
+  "vendor": "HUADA Semiconductor",
+  "frameworks": [
+    "arduino",
+    "ddl"
+  ],
+  "build": {
+    "variant": "generic_hc32f460",
+    "cpu": "cortex-m4",
+    "f_cpu": "8000000",
+    "ddl": {
+      "ots": "true",
+      "efm": "true"
+    }
+  },
+  "upload": {
+    "maximum_size": 524288,
+    "maximum_ram_size": 196608
+  },
+  "debug": {
+    "pyocd_target": "hc32f460xe",
+    "svd_path": "HDSC_HC32F460.svd"
+  }
+}

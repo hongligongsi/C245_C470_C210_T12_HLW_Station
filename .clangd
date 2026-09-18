@@ -1,0 +1,36 @@
+# clangd 配置 (VSCode clangd 扩展)
+# PlatformIO 交叉编译: clangd 默认不信任 arm-none-eabi-g++ 驱动,
+# 因此这里显式补充工具链/框架头文件路径与目标三元组,
+# 同时仍优先使用项目根的 compile_commands.json。
+CompileFlags:
+    CompilationDatabase: .
+    Remove:
+        - -f*
+        - -m*
+    Add:
+        - --target=arm-none-eabi
+        - -DPLATFORMIO=60200
+        - -DARDUINO=100
+        - -DARDUINO_ARCH_HC32
+        - -DDDL_INTERRUPTS_CUSTOM_HANDLER_MANAGEMENT=1
+        - -DARDUINO_CORE_MAJOR=1
+        - -DARDUINO_CORE_MINOR=3
+        - -DCORE_ADC_RESOLUTION=12
+        - -DUSE_OTS
+        - -DLCD_TYPE=0
+        - -DLCD_SPI_TICKS=1
+        - -Isrc
+        - -IC:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/libraries/OnChipTemperature
+        - -IC:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino
+        - -IC:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino/drivers
+        - -IC:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/variants/generic_hc32f460
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/addon
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/cmsis
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/common
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/compat
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/library/inc
+        - -IC:/Users/hongliwang/.platformio/packages/framework-hc32f46x-ddl/cores/ddl/startup
+        - -IC:/Users/hongliwang/.platformio/packages/toolchain-gccarmnoneeabi/arm-none-eabi/include
+        - -IC:/Users/hongliwang/.platformio/packages/toolchain-gccarmnoneeabi/lib/gcc/arm-none-eabi/12.3.1/include
+        - -IC:/Users/hongliwang/.platformio/packages/toolchain-gccarmnoneeabi/lib/gcc/arm-none-eabi/12.3.1/include-fixed
