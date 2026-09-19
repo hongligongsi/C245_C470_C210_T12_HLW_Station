@@ -72,7 +72,7 @@ Palette Pal;
 static void applyTheme() {
   if (Cfg.theme == THEME_LIGHT) {
     Pal.bg = COL_WHITE;
-    Pal.panel = RGB565(0xE6, 0xEA, 0xEE); // 浅灰蓝顶栏
+    Pal.panel = COL_WHITE; // 顶栏与背景同色(对齐参考机)
     Pal.fg = COL_BLACK;
     Pal.accent = COL_BLUE;
     Pal.ok = COL_DARKGREEN;
@@ -87,7 +87,7 @@ static void applyTheme() {
     Pal.pill = RGB565(0xCF, 0xE8, 0xD2); // 浅绿胶囊
   } else {
     Pal.bg = COL_BLACK;
-    Pal.panel = RGB565(0x14, 0x18, 0x20); // 近黑藏青顶栏
+    Pal.panel = COL_BLACK; // 顶栏与背景同色(对齐参考机)
     Pal.fg = COL_WHITE;
     Pal.accent = COL_YELLOW;
     Pal.ok = COL_GREEN;
@@ -547,9 +547,8 @@ void Ui::drawStandard() {
 // 320x240 宽屏主页 (对齐参考机布局)
 // ---------------------------------------------------------------------------
 void Ui::drawWideFrame(bool curve) {
-  // 实色顶栏 + 下沿亮线
+  // 顶栏(与背景同色, 对齐参考机)
   Lcd.fillRect(0, 0, LCD_W, W_HDR_H, Pal.panel);
-  Lcd.drawHLine(0, W_HDR_H, LCD_W, Pal.info);
 
   // V/I/P 标签
   Lcd.drawText(W_VIP_X0, W_VIP_LBL_Y, "VOLTAGE", Pal.grid, Pal.bg, 1);
@@ -655,17 +654,13 @@ void Ui::drawWideCh() {
   for (uint8_t i = 0; i < 3; i++) {
     int16_t x = W_CH_X0 + (int16_t)i * W_CH_DX;
     bool act = (i == idx);
-    // 整块擦除(含胶囊外扩区)
+    // 整块擦除
     Lcd.fillRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 28, Pal.bg);
-    if (act) {
-      // 当前通道: 高亮胶囊
-      Lcd.fillRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 27, Pal.pill);
-      Lcd.drawRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 27, Pal.ok);
-    }
+    // 参考机风格: 当前通道仅文字绿色高亮, 无底色/边框
     uint16_t col = act ? Pal.ok : Pal.grid;
     char lb[4];
     snprintf(lb, sizeof(lb), "CH%d", i + 1);
-    uint16_t lbBg = act ? Pal.pill : Pal.bg;
+    uint16_t lbBg = Pal.bg;
     Lcd.drawText(x + 2, W_CH_Y, lb, col, lbBg, 1);
     char num[8];
     snprintf(num, sizeof(num), "%d", (int)Cfg.quickTemp[i]);
@@ -756,9 +751,12 @@ void Ui::drawWideCurve() {
     int16_t tv = W_CUR_TMAX * i / 4;
     snprintf(lb, sizeof(lb), "%d", (int)tv);
     int16_t tw = Lcd.textWidth(lb, 1);
-    Lcd.drawText(gx - 2 - tw, y - 3, lb, Pal.fg, Pal.bg, 1);
+    Lcd.drawText(gx - 6 - tw, y - 3, lb, Pal.fg, Pal.bg, 1);
     snprintf(lb, sizeof(lb), "%d", (int)(25 * i));
-    Lcd.drawText(W_CUR_X1 + 3, y - 3, lb, Pal.danger, Pal.bg, 1);
+    Lcd.drawText(W_CUR_X1 + 5, y - 3, lb, Pal.fg, Pal.bg, 1);
+    // 红色刻度短线(对齐参考机: 左右轴各一条)
+    Lcd.drawHLine(gx - 3, y, 3, Pal.danger);
+    Lcd.drawHLine(W_CUR_X1 + 1, y, 3, Pal.danger);
   }
   // 纵向网格 7 条(次级色)
   for (uint8_t i = 1; i < 8; i++) {

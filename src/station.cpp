@@ -249,10 +249,11 @@ void Station::sampleStep(uint32_t now) {
 // 逻辑/状态 (50ms)
 // ---------------------------------------------------------------------------
 void Station::logicStep(uint32_t now) {
-  // --- 手柄型号识别 (GET_ID 分压三档, 300ms 稳定消抖) ---
+  // --- 手柄型号识别 (GET_ID 三档: ID接地=C210 / 经10K=T12 / 悬空=C245,
+  //     300ms 稳定消抖) ---
   TipType guess = (_idRaw < TIPID_TH_C210)
-                      ? TIP_T12
-                      : ((_idRaw < TIPID_TH_C245) ? TIP_C210 : TIP_C245);
+                      ? TIP_C210
+                      : ((_idRaw < TIPID_TH_C245) ? TIP_T12 : TIP_C245);
   if (guess != _tipType) {
     if (guess != _idCandidate) {
       _idCandidate = guess;

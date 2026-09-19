@@ -149,15 +149,18 @@
 #endif
 
 // ---------------------------------------------------------------------------
-// GET_ID(PA5) 手柄型号识别: 手柄内 ID 电阻分压, ADC 12bit(0..4095)
-// 典型三档(实测后可在 platformio.ini 用 -D 覆盖):
-//   raw <  TIPID_TH_C210(≈1.1V) -> T12
-//   raw <  TIPID_TH_C245(≈2.2V) -> C210
-//   raw >= TIPID_TH_C245        -> C245
+// GET_ID(PA5) 手柄型号识别 (GX16-5 端子3=ID, 板内上拉至 3.3V, ADC 12bit):
+//   C210: ID(蓝线) 直接接地        -> raw ≈ 0
+//   T12 : ID(绿线) 经 10K 电阻接地 -> raw 居中(上拉 10K 时≈2048, 上拉越大越低)
+//   C245: ID(蓝线) 悬空            -> raw ≈ 满量程
+// 两档边界(实测后可在 platformio.ini 用 -D 覆盖):
+//   raw <  TIPID_TH_C210   -> C210
+//   raw <  TIPID_TH_C245   -> T12
+//   raw >= TIPID_TH_C245   -> C245
 // ---------------------------------------------------------------------------
 #ifndef TIPID_TH_C210
-#define TIPID_TH_C210 1365
+#define TIPID_TH_C210 400
 #endif
 #ifndef TIPID_TH_C245
-#define TIPID_TH_C245 2730
+#define TIPID_TH_C245 3000
 #endif
