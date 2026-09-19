@@ -436,6 +436,9 @@ void Ui::drawFault() {
   case FAULT_TIPSENSOR:
     reason = "SENSOR ERROR";
     break;
+  case FAULT_VTIP:
+    reason = "V/TIP ERR";
+    break;
   default:
     reason = "UNKNOWN";
     break;
@@ -574,12 +577,13 @@ void Ui::drawWideFrame(bool curve) {
 }
 
 void Ui::drawWideTip() {
-  uint8_t tt = (uint8_t)Stn.tipType();
-  if (tt == _lastTipType)
+  // 键值含 hvMode: 245<->470 状态切换时顶栏型号跟随刷新
+  uint8_t key = (uint8_t)Stn.tipType() | (Stn.hvMode() ? 0x80 : 0x00);
+  if (key == _lastTipType)
     return;
   Lcd.fillRect(2, 1, 90, W_HDR_H - 2, Pal.panel);
   Lcd.drawText(4, 2, Stn.tipName(), Pal.fg, Pal.panel, 2);
-  _lastTipType = tt;
+  _lastTipType = key;
 }
 
 // 顶栏右侧: 沙漏(待机计时) / 月亮(休眠) / 喇叭(声音)

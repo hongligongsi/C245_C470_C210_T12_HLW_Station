@@ -24,6 +24,7 @@ enum FaultCode : uint8_t {
   FAULT_OVERTEMP,  // 温度超限
   FAULT_OVERCUR,   // 过流
   FAULT_TIPSENSOR, // 温度信号异常
+  FAULT_VTIP,      // 供电电压与手柄型号不匹配 (24V/48V)
 };
 
 // GET_ID 识别的手柄型号
@@ -71,6 +72,7 @@ public:
   bool holderSleep() const { return _holderSleep; }
   bool tipSwitchOpen() const { return _tipSwitchOpen; }
   bool idHigh() const { return _idHigh; }
+  bool hvMode() const { return _hvMode; } // true=C470 状态(48V)
 
 private:
   // 采样与控制
@@ -78,6 +80,7 @@ private:
   void controlStep(uint32_t now);
   void logicStep(uint32_t now);
   void setHeater(uint8_t d);
+  void checkVoltProfile(uint32_t now);
 
   // 调温参数(离散PID, 50ms): 由 Cfg 注入, 运行时可调
   float _pidP = 25.0f;
@@ -99,6 +102,8 @@ private:
   TipType _tipType = TIP_T12;     // GET_ID 消抖后的手柄型号
   TipType _idCandidate = TIP_T12; // 待确认型号
   uint32_t _idCandidateMs = 0;
+  bool _hvMode = false;           // C470 状态(悬空 ID + 48V 输入)
+  float _nominalV = NOMINAL_VBUS; // 电压前馈标称, 245/470 状态自动切换
 
   bool _tipPresent = false;
   bool _holderSleep = false;

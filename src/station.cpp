@@ -26,7 +26,7 @@ const char *Station::tipName() const {
   case TIP_C210:
     return "C210";
   case TIP_C245:
-    return "C245";
+    return _hvMode ? "C470" : "C245";
   }
   return "T12";
 }
@@ -246,6 +246,49 @@ void Station::sampleStep(uint32_t now) {
 }
 
 // ---------------------------------------------------------------------------
+// 供电电压-手柄匹配校验 (24V/48V 双压, 50ms 调用)
+//   C245/C470 共用悬空 ID, 由输入电压区分状态: 24V=245 / 48V=470
+//   T12/C210 仅允许 24V 窗口; 越窗报 FAULT_VTIP, 恢复匹配 1s 后自动清除
+// ---------------------------------------------------------------------------
+void Station::checkVoltProfile(uint32_t now) {
+  bool in24 = (_vbus >= VTIP_LO_24 && _vbus <= VTIP_HI_24);
+  bool in48 = (_vbus >= VTIP_LO_48 && _vbus <= VTIP_HI_48);
+  bool ok;
+
+  if (_tipType == TIP_C245) {
+    if (in24) {
+      _hvMode = false;
+      ok = true;
+    } else if (in48) {
+      _hvMode = true;
+      ok = true;
+    } else {
+      ok = false; // 36V 等两窗口之外的电压
+    }
+  } else {
+    _hvMode = false;
+    ok = in24;
+  }
+  _nominalV = _hvMode ? 48.0f : 24.0f;
+
+  if (ok) {
+    if (_fault == FAULT_VTIP) {
+      if (now - _faultSinceMs > 1000)
+        _fault = FAULT_NONE; // 电压恢复自动清除
+      else
+        _faultSinceMs = now;
+    }
+    return;
+  }
+  if (_fault == FAULT_NONE) {
+    _fault = FAULT_VTIP;
+    _faultSinceMs = now;
+  } else if (_fault == FAULT_VTIP) {
+    _faultSinceMs = now; // 持续不匹配则保持
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 逻辑/状态 (50ms)
 // ---------------------------------------------------------------------------
 void Station::logicStep(uint32_t now) {
@@ -341,6 +384,10 @@ void Station::logicStep(uint32_t now) {
   }
   if (_fault == FAULT_OVERCUR)
     _faultSinceMs = now;
+
+  // --- 供电电压-手柄匹配校验 (上电 1s 后启动, 避开 ID 消抖期) ---
+  if (now - _bootMs > 1000)
+    checkVoltProfile(now);
 
   // --- 滚珠/震动开关: 晃动手柄视为一次操作, 阻止/退出待机 ---
   // 注: 休眠(_sleeping)只能由长按编码器解除, 震动不清休眠闩锁
@@ -500,7 +547,7 @@ void Station::controlStep(uint32_t now) {
   // 使同一 PID 输出在 19~32V 不同电源下的实际加热功率一致(IronOS/AxxSolder
   // 同款)
   if (_vbus >= 8.0f) {
-    float vff = NOMINAL_VBUS / _vbus;
+    float vff = _nominalV / _vbus; // 标称随 245(24V)/470(48V) 状态切换
     vff *= vff;
     if (vff > VFF_GAIN_MAX)
       vff = VFF_GAIN_MAX;

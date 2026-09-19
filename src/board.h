@@ -87,6 +87,22 @@
 #define TEMP_FAULT_C 480.0f  // 超温保护
 #define CURRENT_FAULT_A 6.0f // 过流保护
 
+// 供电电压-手柄匹配窗口 (高压版 24V/48V 双压):
+//   T12/C210/C245 额定 24V; C470 额定 48V; 超出窗口报 V/TIP 故障
+//   (24V 窗口上限 34V 同时防止 48V 误插烧毁 24V 发热芯)
+#ifndef VTIP_LO_24
+#define VTIP_LO_24 18.0f
+#endif
+#ifndef VTIP_HI_24
+#define VTIP_HI_24 34.0f
+#endif
+#ifndef VTIP_LO_48
+#define VTIP_LO_48 40.0f
+#endif
+#ifndef VTIP_HI_48
+#define VTIP_HI_48 52.0f
+#endif
+
 // PID 输出的"功率%"以该标称电压下的满功率为基准:
 // 实际占空比按 (NOMINAL_VBUS/Vbus)^2 前馈补偿(P=U^2/R),
 // 使 19V/24V/32V 等不同电源下的控温增益与实际功率保持一致。
