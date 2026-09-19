@@ -510,7 +510,12 @@ void Station::controlStep(uint32_t now) {
     out = 0.0f; // 电压读数无效不加热(欠压检测同样会停热)
   }
 
-  uint8_t pwm = (uint8_t)(out * (float)PWM_MAX / 100.0f + 0.5f);
+  uint8_t pwm;
+  // 手柄型号功率上限: C210 发热芯细, 钳位 60% 防烧毁(参考固件同款保护);
+  // 位于前馈放大之后最终截断, 覆盖积分分离全速段与 BOOST 在内的所有加热输出
+  if (_tipType == TIP_C210 && out > C210_POWER_LIMIT_PCT)
+    out = C210_POWER_LIMIT_PCT;
+  pwm = (uint8_t)(out * (float)PWM_MAX / 100.0f + 0.5f);
   setHeater(pwm);
 }
 

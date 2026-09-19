@@ -25,3 +25,5 @@ Thumbs.db
 
 # 本机编辑器配置(含绝对路径); 仅保留共享的 c_cpp_properties.json
 .vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
