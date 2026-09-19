@@ -36,6 +36,7 @@ public:
 private:
   void drawStaticFrame(bool curve);
   void drawStatus();
+  void drawSmallTip(); // 小屏顶栏左侧: 动态手柄型号
   void drawBigTemp();
   void drawSetTemp();
   void drawDutyBar();

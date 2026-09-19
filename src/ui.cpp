@@ -136,6 +136,7 @@ void Ui::invalidate() {
   _lastStyle = 0xFF;
   _lastTheme = 0xFF;
   _lastHdrIcons = 0xFF;
+  _lastTipType = 0xFF;
   _histDirty = true;
 }
 
@@ -177,7 +178,7 @@ void Ui::begin() {
 // 绘制主页静态框架
 void Ui::drawStaticFrame(bool curve) {
   Lcd.fillRect(0, 0, LCD_W, 10, Pal.panel);
-  Lcd.drawText(2, 1, "T12/HLW", Pal.fg, Pal.panel, 1);
+  drawSmallTip();
   Lcd.drawHLine(0, 10, LCD_W, Pal.grid);
   Lcd.drawText(2, SET_Y, "SET", Pal.accent, Pal.bg, 1);
   if (!curve)
@@ -185,6 +186,16 @@ void Ui::drawStaticFrame(bool curve) {
 #if LCD_W >= 120
   Lcd.drawText(LCD_W - 42, TEL_Y2, "AMB", Pal.grid, Pal.bg, 1);
 #endif
+}
+
+// 小屏顶栏左侧: 动态手柄型号 (245<->470 状态切换时跟随刷新)
+void Ui::drawSmallTip() {
+  uint8_t key = (uint8_t)Stn.tipType() | (Stn.hvMode() ? 0x80 : 0x00);
+  if (key == _lastTipType)
+    return;
+  Lcd.fillRect(2, 1, 30, 9, Pal.panel);
+  Lcd.drawText(2, 1, Stn.tipName(), Pal.fg, Pal.panel, 1);
+  _lastTipType = key;
 }
 
 void Ui::drawStatus() {
@@ -904,6 +915,7 @@ void Ui::update() {
     else
       drawWideBar();
 #else
+    drawSmallTip();
     drawStatus();
     drawBigTemp();
     drawSetTemp();
