@@ -4,6 +4,30 @@
 
 带实时温度/功率曲线、树状设置菜单、片内 Flash 参数掉电保存、可视化校准与完善的软硬件保护。
 
+| 项目 | 规格 |
+|---|---|
+| 主控 | HC32F460JETA（LQFP48，Cortex-M4F，512KB Flash / 192KB SRAM） |
+| 开发框架 | PlatformIO + Arduino（社区平台 `platform-hc32f46x`，arm-none-eabi-gcc 12.3.1） |
+| 支持手柄 | T12 / HLW C245 / HLW C210 / HLW C470（GX16-5 五芯航空座） |
+| 供电 | 24V（245 状态）/ 48V（470 状态）双压输入，电压与手柄型号交叉校验 |
+| 屏幕 | 0.96" 80×160 / 1.14" 135×240 / 1.3-1.54" 240×240 / 2.0-3.2" 320×240，软件 SPI |
+| 输入设备 | EC11 旋转编码器 或 三键（加 / 减 / 确认），编译期二选一 |
+| 原理图 | `SCH_T12_HLW470-245-210_V1.7-高压版` |
+| 协议 | MIT License © srh |
+
+## 目录
+
+- [功能特性](#功能特性)
+- [硬件](#硬件)
+- [快速开始](#快速开始)
+- [配置与编译选项](#配置与编译选项)
+- [使用说明](#使用说明)
+- [故障排查](#故障排查)
+- [源码结构](#源码结构)
+- [开发](#开发)
+- [文档](#文档)
+- [开源协议](#开源协议)
+
 ## 功能特性
 
 - **多手柄支持**：T12 / HLW C245 / HLW C210 / HLW C470，通过手柄座 GET_ID 电阻自动识别型号（C210 支持 24V 供电）
@@ -22,7 +46,13 @@
 
 ## 硬件
 
+### 主控与板级定义
+
 主控：**HC32F460JETA LQFP48**，依据 `SCH_T12_HLW470-245-210_V1.7-高压版` 原理图。
+
+工程未使用 PlatformIO 官方板级描述，而是内置 `boards/hc32f460jeta.json`，在片内 Flash 驱动之外额外启用 **OTS / EFM** 驱动（`-DUSE_OTS`），供温度换算与参数持久化使用。
+
+### 引脚分配
 
 | 功能 | 引脚 | 说明 |
 |---|---|---|
@@ -76,38 +106,74 @@
 - 470 状态下电压前馈标称自动切换为 48V，同一组 PID 参数在两种状态下控温增益一致
 - 窗口阈值可用编译宏覆盖：`-DVTIP_LO_24= -DVTIP_HI_24= -DVTIP_LO_48= -DVTIP_HI_48=`（单位 V）
 
-## 目录结构
+### 屏幕
 
+屏幕型号为**编译期选项**（`LCD_TYPE`），驱动走**软件 SPI**，不占用硬件 SPI 外设；RST 与 DC 分别接 PB6 / PB5，数据线 SDA 接 PB4、时钟 CLK 接 PA15、片选 CS 接 PA14。
+
+不同型号的分辨率直接决定帧缓冲大小，是选屏时的主要约束（见 [资源占用](#资源占用)）。
+
+### 安全须知
+
+- 主机支持 48V 输入，接线、更换手柄前请断开电源；48V 电源**只允许**配 C245/C470 大功率芯使用；
+- 发热芯与烙铁头工作温度可达 480°C，调试时勿接触金属部分；
+- 固件的各项保护（欠压/过压/超温/过流/无温升看门狗）是最后一道防线，不能替代正确的电源与手柄搭配；
+- 首次上电建议先用低压（18 ~ 34V）与常规手柄验证识别、显示与控温是否正常，再接入 48V 使用 470 状态。
+
+## 快速开始
+
+### 1. 环境准备
+
+- 安装 [PlatformIO](https://platformio.org/)（VS Code 插件或 CLI）
+- 安装 pyOCD 用于烧录：`pip install pyocd`
+- 准备 CMSIS-DAP 调试器（见 [烧录](#4-烧录)）
+
+### 2. 获取源码
+
+```bash
+git clone https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station.git
+cd C245_C470_C210_T12_HLW_Station
 ```
-C245_C470_C210_T12_HLW_Station/
-├── platformio.ini          # PlatformIO 工程配置（屏幕型号在此切换）
-├── boards/
-│   └── hc32f460jeta.json   # 自定义板级定义（启用 OTS/EFM 驱动）
-└── src/
-    ├── main.cpp            # 主循环：事件分流、编码器、背光 PWM、蜂鸣
-    ├── board.h             # 引脚 / 硬件参数 / 保护阈值 / ID 分档宏
-    ├── station.h/.cpp      # ADC 采样、热电偶换算、PID、状态机、保护
-    ├── settings.h/.cpp     # Flash 模拟 EEPROM 设置存储（CRC）
-    ├── menu.h/.cpp         # 树状设置菜单（浏览/编辑/重置）
-    ├── calib.h/.cpp        # 全屏可视化校准页
-    ├── ui.h/.cpp           # 主页（标准/曲线/宽屏）、故障页、主题
-    ├── tft.h/.cpp          # ST7735/ST7789 软件 SPI 驱动 + 帧缓冲
-    ├── encoder.h/.cpp      # EC11 扫描（旋转/短按/长按/连发）
-    ├── buzzer.h/.cpp       # 无源蜂鸣器
-    └── font5x7.h           # 5×7 ASCII 点阵字库
-```
 
-## 编译
-
-1. 安装 [PlatformIO](https://platformio.org/)（VS Code 插件或 CLI）
-2. 克隆并进入工程目录
-3. 编译：
+### 3. 编译
 
 ```bash
 pio run
 ```
 
 平台与工具链会自动安装（社区平台 `platform-hc32f46x`、arm-none-eabi-gcc 12.3.1）。
+
+两种输入设备的固件环境：
+
+| 环境 | 输入设备 | 构建命令 | 产物目录 |
+|---|---|---|---|
+| `hc32f460jeta`（默认） | EC11 旋转编码器 | `pio run` | `.pio/build/hc32f460jeta/` |
+| `hc32f460jeta-btn` | 三键：加 / 减 / 确认 | `pio run -e hc32f460jeta-btn` | `.pio/build/hc32f460jeta-btn/` |
+
+### 4. 烧录
+
+本工程使用 pyOCD + CMSIS-DAP 调试器（under-reset 连接）：
+
+```bash
+pyocd load --target hc32f460xe -O connect_mode=under-reset .pio/build/hc32f460jeta/firmware.bin
+```
+
+或在 PlatformIO 中执行 Upload（使用 `platformio.ini` 中配置的同一命令 `upload_command`）。
+
+- `under-reset`：连接时保持目标复位，避免用户程序启动后抢占调试口；
+- 按键版烧录时把 `firmware.bin` 路径换成 `.pio/build/hc32f460jeta-btn/firmware.bin`；
+- 串口监视波特率 115200（`monitor_speed`）。
+
+> **首次烧录提示**：设置结构带版本号，从旧版本固件升级（或 Flash 中无有效配置）时会自动恢复一次出厂默认值并重新写入，属正常现象。
+
+### 5. 首次上电检查清单
+
+1. 屏幕点亮，顶栏显示识别到的手柄型号（C210 / T12 / C245 / C470）；
+2. 电压、电流、功率读数正常（可用万用表比对电压，不准时进校准页调 VBUS K）；
+3. 上电约 1s 后交叉校验通过，无 `V/TIP ERR`；
+4. 旋转编码器能调温，进入菜单能正常滚动；
+5. 放上烙铁头后能正常加热、温度稳定（异常时进校准页看 T/P 曲线）。
+
+## 配置与编译选项
 
 ### 屏幕型号切换
 
@@ -145,19 +211,28 @@ pio run
 
 手柄带滚珠/震动开关时，在 `build_flags` 增加 `-DPIN_VIBRATION=PAx`，并在工具设置中把「待机时间」设为非 0、「VIB SW」置 ON；晃动手柄即阻止/退出待机（休眠仍需长按解除）。
 
-## 烧录
+### 编译宏总表
 
-本工程使用 pyOCD + CMSIS-DAP 调试器（under-reset 连接）：
+在 `platformio.ini` 的 `build_flags` 中追加，可用于适配不同硬件批次：
 
-```bash
-pyocd load --target hc32f460xe -O connect_mode=under-reset .pio/build/hc32f460jeta/firmware.bin
-```
+| 宏 | 用途 | 取值说明 |
+|---|---|---|
+| `-DLCD_TYPE=n` | 屏幕型号 | 0 / 1 / 2 / 3 |
+| `-DLCD_MADCTL=0xA0` | 显示方向修正 | 备选 0xE0 / 0x20 |
+| `-DLCD_X_OFFSET=` / `-DLCD_Y_OFFSET=` | 显示偏移修正 | 按屏幕批次实测 |
+| `-DLCD_SPI_TICKS=1` | 软件 SPI 时序节拍 | 共享配置默认值 |
+| `-DCORE_ADC_RESOLUTION=12` | ADC 分辨率 | 共享配置默认 12bit |
+| `-DUSE_OTS` | 启用 OTS 温度传感器驱动 | 共享配置默认开启 |
+| `-DINPUT_BUTTONS` | 切换为三键输入固件 | 按键版环境已内置 |
+| `-DPIN_VIBRATION=PAx` | 震动/滚珠开关引脚 | V1.7 板默认未引出 |
+| `-DBTN_UP_PIN=` / `-DBTN_DOWN_PIN=` / `-DBTN_OK_PIN=` | 按键引脚覆盖 | 按键版接线不同时使用 |
+| `-DTIPID_TH_C210=` / `-DTIPID_TH_C245=` | 手柄 ID 判定阈值 | 实测 GET_ID 原始读数后覆盖 |
+| `-DVTIP_LO_24=` / `-DVTIP_HI_24=` / `-DVTIP_LO_48=` / `-DVTIP_HI_48=` | 电压匹配窗口 | 单位 V |
+| `-DNOMINAL_VBUS=xx` | 电压前馈标称电压 | 默认 24V / 470 状态 48V |
 
-或在 PlatformIO 中执行 Upload（使用 platformio.ini 中配置的同一命令）。
+## 使用说明
 
-> **首次烧录提示**：设置结构带版本号，从旧版本固件升级（或 Flash 中无有效配置）时会自动恢复一次出厂默认值并重新写入，属正常现象。
-
-## 操作说明
+### 操作说明
 
 | 场景 | 旋转编码器 | 短按 | 长按 |
 |---|---|---|---|
@@ -235,16 +310,98 @@ GET_ID ADC（12bit，板内上拉）三档判定：ID 接地 → **C210**（raw 
 -DTIPID_TH_C210=实测值 -DTIPID_TH_C245=实测值
 ```
 
-## IDE 配置（可选）
+## 故障排查
+
+| 现象 | 排查方向 |
+|---|---|
+| 屏幕不亮 / 花屏 | 核对 `LCD_TYPE` 与实际分辨率、软件 SPI 接线（PA14/PA15/PB4/PB5/PB6）、背光亮度设置 |
+| 画面颠倒 / 镜像 | 加 `-DLCD_MADCTL=0xA0`（备选 0xE0 / 0x20） |
+| 画面偏移 / 边缘截断 | 用 `-DLCD_X_OFFSET=` / `-DLCD_Y_OFFSET=` 按批次微调 |
+| 顶栏型号与实际手柄不符 | 核对 ID 线接法，实测 GET_ID 原始读数后用 `TIPID_TH_*` 覆盖阈值 |
+| 显示 V/TIP ERR 且不加热 | 实测供电电压是否落在对应窗口（T12/C210/C245：18~34V；C245 配 48V：40~52V）；34~40V 视为异常输入；电压恢复后约 1s 自动清除 |
+| 显示 SENSOR ERROR 并锁停 | 检查热电偶是否短路到地、运放与加热 MOS 是否损坏；排除后在故障页短按清除 |
+| 温度整体偏高/偏低 | 冷态偏差校准 CJC；350°C 附近成比例偏差需外部测温设备校准 T CAL |
+| 屏幕电压与万用表不符 | 进校准页调 VBUS K |
+| 回温慢 | 适当提高 P、I 或加大控制带；也可提高功率上限 |
+| 温度过冲 | 适当降低 P、I、D 或减小控制带；保守参数可试 20/0.1/18 |
+| 换电源后功率明显变化 | 固件已有 `(24V/Vbus)²` 前馈补偿，先确认母线电压在保护窗口内 |
+| C210 功率上不去 | 属正常设计：识别为 C210 时输出自动钳位 60% |
+| 手柄放支架后停热 | 正常：支架休眠线触发待机保温，超时进入休眠；长按编码器解除 |
+| 晃动手柄无反应 | 确认手柄带滚珠/震动开关（C210/C245 无）、已定义 `PIN_VIBRATION`、「待机时间」非 0 且「VIB SW」为 ON；休眠只能长按解除 |
+| 升级固件后参数被重置 | 设置结构带版本号，升级时会恢复一次出厂默认值，属正常现象 |
+| 烧录失败 | 使用 pyOCD + CMSIS-DAP 的 under-reset 模式；确认调试器连接与目标型号 `hc32f460xe` |
+
+## 源码结构
+
+```
+C245_C470_C210_T12_HLW_Station/
+├── platformio.ini          # PlatformIO 工程配置（屏幕型号在此切换）
+├── boards/
+│   └── hc32f460jeta.json   # 自定义板级定义（启用 OTS/EFM 驱动）
+├── docs/
+│   └── ui_preview.html     # 320×240 双屏 UI 预览页（浏览器打开）
+└── src/
+    ├── main.cpp            # 主循环：事件分流、编码器、背光 PWM、蜂鸣
+    ├── board.h             # 引脚 / 硬件参数 / 保护阈值 / ID 分档宏
+    ├── station.h/.cpp      # ADC 采样、热电偶换算、PID、状态机、保护
+    ├── settings.h/.cpp     # Flash 模拟 EEPROM 设置存储（CRC）
+    ├── menu.h/.cpp         # 树状设置菜单（浏览/编辑/重置）
+    ├── calib.h/.cpp        # 全屏可视化校准页
+    ├── ui.h/.cpp           # 主页（标准/曲线/宽屏）、故障页、主题
+    ├── tft.h/.cpp          # ST7735/ST7789 软件 SPI 驱动 + 帧缓冲
+    ├── encoder.h/.cpp      # EC11 扫描（旋转/短按/长按/连发）
+    ├── buzzer.h/.cpp       # 无源蜂鸣器
+    └── font5x7.h           # 5×7 ASCII 点阵字库
+```
+
+| 文件 | 职责 |
+|---|---|
+| `main.cpp` | 主循环调度：事件分流、编码器/按键扫描、背光 PWM、蜂鸣器 |
+| `board.h` | 集中定义引脚、硬件参数、保护阈值、手柄 ID 分档宏 |
+| `station.cpp` | 采样（电压 / 电流 / 温度）、热电偶换算、PID 运算、状态机、保护逻辑 |
+| `settings.cpp` | 设置项的 Flash 持久化（模拟 EEPROM / CRC / 字段钳位） |
+| `menu.cpp` | 树状菜单的浏览、编辑、重置逻辑 |
+| `calib.cpp` | 全屏校准页（VBUS K / CJC / T CAL） |
+| `ui.cpp` | 主页三种布局、故障页、深色/浅色主题 |
+| `tft.cpp` | 屏幕驱动与帧缓冲绘制 |
+| `encoder.cpp` | EC11 旋转编码器扫描（旋转、短按、长按、连发） |
+| `buzzer.cpp` | 无源蜂鸣器发声 |
+| `font5x7.h` | ASCII 点阵字库（菜单英文标签） |
+
+## 开发
+
+### IDE 配置
 
 工程提供 `.clangd` 与 `compile_commands.json`（`pio run -t compiledb` 可重新生成），
 在 VS Code 中配合 clangd 或 Microsoft C/C++ 扩展可获得交叉编译头文件路径的 IntelliSense。
 `compile_commands.json` 含本机绝对路径，默认不提交。
 
-## 资源占用
+### 资源占用
 
 320×240 横屏构建：Flash ≈ 44KB（8.4%），RAM ≈ 167KB（85.2%，主要为显示帧缓冲）。
 小屏（80×160）构建：Flash ≈ 43KB，RAM ≈ 39KB（20%）。
+
+### 参数持久化
+
+所有设置存于片内 Flash **末扇区**（模拟 EEPROM），写入带 CRC 校验与字段范围钳位；设置结构带版本号，版本不匹配或校验失败时自动恢复一次出厂默认值并重新写入。菜单中的「重置配置」保留主题与校准，「系统重置」为全部出厂。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [Wiki 首页](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki) | 项目总览与导航 |
+| [快速开始](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Quick-Start) | 环境、编译、烧录 |
+| [硬件与接线](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Hardware) | 引脚表、手柄接线、双压校验 |
+| [屏幕与显示配置](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Display) | 选型表与显示异常处理 |
+| [操作指南](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Controls) | 交互语义与状态机 |
+| [菜单与设置](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Menu) | 各级菜单与默认值 |
+| [PID 与控温调参](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/PID) | 参数与算法详解 |
+| [校准](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Calibration) | 三项标定流程 |
+| [保护与故障](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Protection) | 阈值与故障判据 |
+| [故障排查](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Troubleshooting) | 现象 → 处理对照 |
+| [源码结构与开发](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Development) | 模块职责与编译宏 |
+
+另附 `docs/ui_preview.html`：320×240 双屏 UI 复刻预览，浏览器直接打开即可查看界面效果。
 
 ## 开源协议
 
