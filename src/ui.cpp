@@ -42,24 +42,61 @@ Palette Pal;
 // ---------------------------------------------------------------------------
 #if LCD_W >= 200
 #define W_HDR_H 18
-#define W_VIP_LBL_Y 21
-#define W_VIP_VAL_Y 30
-#define W_VIP_X0 8
-#define W_VIP_X1 118
-#define W_VIP_X2 230
-#define W_CH_Y 50
-#define W_CH_VAL_Y 60
-#define W_CH_X0 6
-#define W_CH_DX 60
-#define W_BIG_X 192
-#define W_BIG_Y 50
-#define W_BIG_SCALE 7
-#define W_SET_Y 104
-#define W_CUR_X0 26
-#define W_CUR_X1 294
-#define W_CUR_Y0 120
-#define W_CUR_Y1 220
-#define W_CUR_TMAX 480 // 左轴温度量程(固定, 与参考机一致)
+// 左侧竖向渐变功率条
+#define W_BAR_X 18
+#define W_BAR_Y 46
+#define W_BAR_W 28
+#define W_BAR_H 142
+#define W_PCT_Y 190
+// 居中大字温度(3 位槽位: 3*6*10=180px)
+#define W_BIG_X 70
+#define W_BIG_Y 56
+#define W_BIG_SCALE 10
+#define W_DEG_X 254
+#define W_DEG_Y 58
+#define W_SET_Y 132
+// 底部三个圆角快捷温度框
+#define W_CH_X0 65
+#define W_CH_Y 192
+#define W_CH_VAL_Y 200
+#define W_CH_BOX_W 58
+#define W_CH_BOX_H 30
+#define W_CH_GAP 8
+// 信息版布局(STYLE_CURVE): 电压/电流/功率 + 快捷温度 + 曲线
+#define W2_VIP_LBL_Y 20
+#define W2_VIP_VAL_Y 31
+#define W2_VIP_X0 8
+#define W2_VIP_X1 118
+#define W2_VIP_X2 230
+#define W2_CH_Y 50
+#define W2_CH_VAL_Y 61
+#define W2_CH_X0 6
+#define W2_CH_DX 60
+#define W2_BIG_X 192
+#define W2_BIG_Y 50
+#define W2_BIG_SCALE 7
+#define W2_SET_Y 104
+#define W2_CUR_X0 26
+#define W2_CUR_X1 294
+#define W2_CUR_Y0 120
+#define W2_CUR_Y1 220
+#define W2_CUR_TMAX 480 // 左轴温度量程(固定)
+
+// 圆角矩形描边(半径 r, 只画边框不填充)
+static void drawRoundBox(int16_t x, int16_t y, int16_t w, int16_t h,
+                         int16_t r, uint16_t c) {
+  Lcd.drawHLine(x + r, y, w - 2 * r, c);
+  Lcd.drawHLine(x + r, y + h - 1, w - 2 * r, c);
+  Lcd.drawVLine(x, y + r, h - 2 * r, c);
+  Lcd.drawVLine(x + w - 1, y + r, h - 2 * r, c);
+  for (int16_t i = 0; i < r; i++) {
+    int16_t d = r - i;
+    Lcd.setPixel(x + i, y + d, c);
+    Lcd.setPixel(x + w - 1 - i, y + d, c);
+    Lcd.setPixel(x + i, y + h - 1 - d, c);
+    Lcd.setPixel(x + w - 1 - i, y + h - 1 - d, c);
+  }
+}
 #endif
 
 // 大温度固定 3 位槽位
@@ -137,6 +174,7 @@ void Ui::invalidate() {
   _lastTheme = 0xFF;
   _lastHdrIcons = 0xFF;
   _lastTipType = 0xFF;
+  _lastStatus = 0xFF;
   _histDirty = true;
 }
 
@@ -173,6 +211,7 @@ void Ui::begin() {
   _lastPage = 0xFF;
   _lastMode = -1;
   _histDirty = true;
+  _bootMs = millis(); // 开机提示"重启恢复"从界面就绪后开始计时
 }
 
 // 绘制主页静态框架
@@ -367,14 +406,14 @@ void Ui::drawFooter() {
   // 快捷温度切换提示(1s)
   if ((int32_t)(now - _quickPromptMs) < 1000 &&
       (int32_t)(now - _quickPromptMs) >= 0) {
-    char p[14];
-    snprintf(p, sizeof(p), "SET %d%cC", _quickPromptTemp, (char)FONT_DEG);
+    char p[24];
+    snprintf(p, sizeof(p), "设定 %d%cC", _quickPromptTemp, (char)FONT_DEG);
     const uint8_t id = 200;
     if (id != _lastFooter) {
-      Lcd.fillRect(0, LCD_H - 10, LCD_W, 9, Pal.bg);
-      Lcd.drawHLine(0, LCD_H - 11, LCD_W, Pal.grid);
-      Lcd.drawText((LCD_W - Lcd.textWidth(p, 1)) / 2, LCD_H - 9, p, Pal.accent,
-                   Pal.bg, 1);
+      Lcd.fillRect(0, LCD_H - 13, LCD_W, 13, Pal.bg);
+      Lcd.drawHLine(0, LCD_H - 14, LCD_W, Pal.grid);
+      Lcd.drawText((LCD_W - Lcd.textWidth(p, 1)) / 2, LCD_H - 10, p,
+                   Pal.accent, Pal.bg, 1);
       _lastFooter = id;
     }
     return;
@@ -385,7 +424,7 @@ void Ui::drawFooter() {
   const char *txt;
   if (!Stn.tipPresent()) {
     id = 0;
-    txt = "INSERT TIP";
+    txt = "请插入工具";
   } else
     switch (Stn.mode()) {
     case MODE_HEAT:
@@ -393,34 +432,34 @@ void Ui::drawFooter() {
       // 每 2.5s 交替
       if ((millis() / 2500) & 1) {
         id = 1;
-        txt = "CLICK=TMP";
+        txt = "轻按切档";
       } else {
         id = 2;
-        txt = "HOLD=MENU";
+        txt = "长按菜单";
       }
       break;
     case MODE_SLEEP:
       id = 3;
-      txt = "HOLD TO WAKE";
+      txt = "长按唤醒";
       break;
     case MODE_STANDBY:
       id = 4;
-      txt = "- STANDBY -";
+      txt = "待机中";
       break;
     case MODE_FAULT:
       id = 5;
-      txt = "CLICK TO RESET";
+      txt = "轻按复位";
       break;
     default:
       id = 6;
-      txt = "CLICK TO HEAT";
+      txt = "轻按加热";
       break;
     }
 
   if (id != _lastFooter) {
-    Lcd.fillRect(0, LCD_H - 10, LCD_W, 9, Pal.bg);
-    Lcd.drawHLine(0, LCD_H - 11, LCD_W, Pal.grid);
-    Lcd.drawText((LCD_W - Lcd.textWidth(txt, 1)) / 2, LCD_H - 9, txt, Pal.grid,
+    Lcd.fillRect(0, LCD_H - 13, LCD_W, 13, Pal.bg);
+    Lcd.drawHLine(0, LCD_H - 14, LCD_W, Pal.grid);
+    Lcd.drawText((LCD_W - Lcd.textWidth(txt, 1)) / 2, LCD_H - 10, txt, Pal.grid,
                  Pal.bg, 1);
     _lastFooter = id;
   }
@@ -428,44 +467,49 @@ void Ui::drawFooter() {
 
 void Ui::drawFault() {
   const char *reason;
-  char buf[20];
+  char buf[24];
   switch (Stn.fault()) {
   case FAULT_VUV:
-    snprintf(buf, sizeof(buf), "LOW VOLT %.1fV", Stn.vbus());
+    snprintf(buf, sizeof(buf), "电压过低 %.1fV", Stn.vbus());
     reason = buf;
     break;
   case FAULT_VOV:
-    snprintf(buf, sizeof(buf), "OVER VOLT %.1fV", Stn.vbus());
+    snprintf(buf, sizeof(buf), "电压过高 %.1fV", Stn.vbus());
     reason = buf;
     break;
   case FAULT_OVERTEMP:
-    reason = "TIP OVER TEMP";
+    reason = "烙铁头过温";
     break;
   case FAULT_OVERCUR:
-    reason = "OVER CURRENT";
+    reason = "短路过载";
     break;
   case FAULT_TIPSENSOR:
-    reason = "SENSOR ERROR";
+    reason = "传感器异常";
     break;
   case FAULT_VTIP:
-    reason = "V/TIP ERR";
+    reason = "烙铁头异常";
     break;
   default:
-    reason = "UNKNOWN";
+    reason = "未知故障";
     break;
   }
 
   uint8_t fs = (LCD_W >= 120) ? 4 : 3;
-  uint8_t fs2 = (LCD_W >= 120) ? 3 : 2;
-  int16_t fy2 = (LCD_W >= 120) ? 80 : 64;
+  int16_t fy2 = (LCD_W >= 120) ? 76 : 56;
   Lcd.drawText((LCD_W - Lcd.textWidth("!", fs)) / 2, 24, "!", Pal.danger,
                Pal.bg, fs);
-  Lcd.drawText((LCD_W - Lcd.textWidth("FAULT", fs2)) / 2, fy2, "FAULT",
-               Pal.danger, Pal.bg, fs2);
-  Lcd.drawText((LCD_W - Lcd.textWidth(reason, 1)) / 2, fy2 + 7 * fs2 + 14,
-               reason, Pal.accent, Pal.bg, 1);
-  Lcd.drawText((LCD_W - Lcd.textWidth("CLICK TO RESET", 1)) / 2, LCD_H - 20,
-               "CLICK TO RESET", Pal.grid, Pal.bg, 1);
+
+  // 故障标题: 红底白字
+  const int16_t bw = 64, bh = 20;
+  int16_t bx = (LCD_W - bw) / 2;
+  Lcd.fillRect(bx, fy2, bw, bh, Pal.danger);
+  Lcd.drawText((LCD_W - Lcd.textWidth("故障", 1)) / 2, fy2 + 6, "故障", Pal.bg,
+               Pal.danger, 1);
+
+  Lcd.drawText((LCD_W - Lcd.textWidth(reason, 1)) / 2, fy2 + bh + 14, reason,
+               Pal.accent, Pal.bg, 1);
+  Lcd.drawText((LCD_W - Lcd.textWidth("轻按复位", 1)) / 2, LCD_H - 22, "轻按复位",
+               Pal.grid, Pal.bg, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -560,32 +604,32 @@ void Ui::drawStandard() {
 // ---------------------------------------------------------------------------
 // 320x240 宽屏主页 (对齐参考机布局)
 // ---------------------------------------------------------------------------
-void Ui::drawWideFrame(bool curve) {
-  // 顶栏(与背景同色, 对齐参考机)
+// 宽屏静态框架: info=true 信息版(STYLE_CURVE), false 简洁版(STYLE_BAR)
+void Ui::drawWideFrame(bool info) {
+  // 顶栏(与背景同色): 型号与状态图标由 drawWideTip / drawWideIcons 绘制
   Lcd.fillRect(0, 0, LCD_W, W_HDR_H, Pal.panel);
+  _lastStatus = 0xFF; // 顶栏被整体擦除, 状态文字需重画
 
-  // V/I/P 标签
-  Lcd.drawText(W_VIP_X0, W_VIP_LBL_Y, "VOLTAGE", Pal.grid, Pal.bg, 1);
-  Lcd.drawText(W_VIP_X1, W_VIP_LBL_Y, "CURRENT", Pal.grid, Pal.bg, 1);
-  Lcd.drawText(W_VIP_X2, W_VIP_LBL_Y, "POWER", Pal.grid, Pal.bg, 1);
-  // 列分隔线(标签行与数值行之间)
-  Lcd.drawVLine(W_VIP_X1 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
-  Lcd.drawVLine(W_VIP_X2 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
-
+  if (info) {
+    // V/I/P 标签
+    Lcd.drawText(W2_VIP_X0, W2_VIP_LBL_Y, "电压", Pal.grid, Pal.bg, 1);
+    Lcd.drawText(W2_VIP_X1, W2_VIP_LBL_Y, "电流", Pal.grid, Pal.bg, 1);
+    Lcd.drawText(W2_VIP_X2, W2_VIP_LBL_Y, "功率", Pal.grid, Pal.bg, 1);
+    Lcd.drawVLine(W2_VIP_X1 - 8, W2_VIP_LBL_Y - 2, 28, Pal.gridMin);
+    Lcd.drawVLine(W2_VIP_X2 - 8, W2_VIP_LBL_Y - 2, 28, Pal.gridMin);
 #ifndef NO_INPUT
-  // CH1/CH2/CH3 标签(当前槽颜色在 drawWideCh 覆盖)
-  Lcd.drawText(W_CH_X0, W_CH_Y, "CH1", Pal.grid, Pal.bg, 1);
-  Lcd.drawText(W_CH_X0 + W_CH_DX, W_CH_Y, "CH2", Pal.grid, Pal.bg, 1);
-  Lcd.drawText(W_CH_X0 + 2 * W_CH_DX, W_CH_Y, "CH3", Pal.grid, Pal.bg, 1);
+    // 快捷温度通道标签
+    for (uint8_t i = 0; i < 3; i++) {
+      char lb[12];
+      snprintf(lb, sizeof(lb), "快捷%u", (unsigned)(i + 1));
+      Lcd.drawText(W2_CH_X0 + (int16_t)i * W2_CH_DX, W2_CH_Y, lb, Pal.grid,
+                   Pal.bg, 1);
+    }
 #endif
-
-  // 曲线区下沿/footer 分隔线
-  Lcd.drawHLine(0, W_CUR_Y1 + 3, LCD_W, Pal.grid);
-
-  if (!curve) {
-    // 标准风格: 功率条边框
-    Lcd.drawRect(W_CUR_X0, W_CUR_Y0, W_CUR_X1 - W_CUR_X0 + 1,
-                 W_CUR_Y1 - W_CUR_Y0 + 1, Pal.grid);
+    Lcd.drawHLine(0, W2_CUR_Y1 + 3, LCD_W, Pal.grid);
+  } else {
+    // 左侧功率条外框(渐变填充在 drawWideBar 中完成)
+    Lcd.drawRect(W_BAR_X - 1, W_BAR_Y - 1, W_BAR_W + 2, W_BAR_H + 2, Pal.grid);
   }
 }
 
@@ -596,7 +640,65 @@ void Ui::drawWideTip() {
     return;
   Lcd.fillRect(2, 1, 90, W_HDR_H - 2, Pal.panel);
   Lcd.drawText(4, 2, Stn.tipName(), Pal.fg, Pal.panel, 2);
+  if (_lastTipType != 0xFF) {
+    _tipChgMs = millis(); // 型号切换: 顶栏短暂显示"换芯中"
+    _lastStatus = 0xFF;
+  }
   _lastTipType = key;
+}
+
+// 顶栏状态提示文字(右对齐到图标左侧 x=244)
+void Ui::drawWideStatus() {
+  uint32_t now = millis();
+  uint8_t id;
+  const char *txt;
+  uint16_t col;
+
+  if ((int32_t)(now - _bootMs) < 1500) {
+    id = 1;
+    txt = "重启恢复";
+    col = Pal.info;
+  } else if ((int32_t)(now - _tipChgMs) < 1200) {
+    id = 2;
+    txt = "换芯中";
+    col = Pal.warn;
+  } else if (!Stn.tipPresent()) {
+    id = 3;
+    txt = "请插入工具";
+    col = Pal.danger;
+  } else if (Stn.fault() == FAULT_OVERCUR) {
+    id = 4;
+    txt = "短路过载";
+    col = Pal.danger;
+  } else if (Stn.mode() == MODE_FAULT) {
+    id = 5;
+    txt = "故障";
+    col = Pal.danger;
+  } else if (Stn.mode() == MODE_SLEEP) {
+    id = 6;
+    txt = "已休眠";
+    col = Pal.info;
+  } else if (Stn.mode() == MODE_STANDBY) {
+    id = 7;
+    txt = "待机中";
+    col = Pal.info;
+  } else if (Stn.duty() > 0) {
+    id = 8;
+    txt = "加热中";
+    col = Pal.warn;
+  } else {
+    id = 9;
+    txt = "停止加热";
+    col = Pal.grid;
+  }
+
+  if (id == _lastStatus)
+    return;
+  // 清除状态区(左边界避开型号文字, 右边界避开图标)
+  Lcd.fillRect(60, 1, 188, W_HDR_H - 2, Pal.panel);
+  int16_t w = Lcd.textWidth(txt, 1);
+  Lcd.drawText(244 - w, 3, txt, col, Pal.panel, 1);
+  _lastStatus = id;
 }
 
 // 顶栏右侧: 沙漏(待机计时) / 月亮(休眠) / 喇叭(声音)
@@ -628,39 +730,40 @@ void Ui::drawWideIcons() {
     Lcd.drawText(299, y, "X", Pal.danger, Pal.panel, 1);
 }
 
-void Ui::drawWideVIP() {
+// ---- 信息版(STYLE_CURVE) ----
+void Ui::drawWideInfoVIP() {
   char buf[12];
 
   int16_t v10 = (int16_t)(Stn.vbus() * 10.0f);
   if (v10 != _lastVBus10) {
-    Lcd.fillRect(W_VIP_X0, W_VIP_VAL_Y, 100, 15, Pal.bg);
+    Lcd.fillRect(W2_VIP_X0, W2_VIP_VAL_Y, 100, 15, Pal.bg);
     snprintf(buf, sizeof(buf), "%.1fV", Stn.vbus());
     uint16_t c =
         (Stn.vbus() < VBUS_UV_FAULT + 2.0f || Stn.vbus() > VBUS_OV_FAULT - 2.0f)
             ? Pal.danger
             : Pal.vCol;
-    Lcd.drawText(W_VIP_X0, W_VIP_VAL_Y, buf, c, Pal.bg, 2);
+    Lcd.drawText(W2_VIP_X0, W2_VIP_VAL_Y, buf, c, Pal.bg, 2);
     _lastVBus10 = v10;
   }
 
   int16_t c100 = (int16_t)(Stn.current() * 100.0f);
   if (c100 != _lastCurr100) {
-    Lcd.fillRect(W_VIP_X1, W_VIP_VAL_Y, 104, 15, Pal.bg);
+    Lcd.fillRect(W2_VIP_X1, W2_VIP_VAL_Y, 104, 15, Pal.bg);
     snprintf(buf, sizeof(buf), "%.2fA", Stn.current());
-    Lcd.drawText(W_VIP_X1, W_VIP_VAL_Y, buf, Pal.cCol, Pal.bg, 2);
+    Lcd.drawText(W2_VIP_X1, W2_VIP_VAL_Y, buf, Pal.cCol, Pal.bg, 2);
     _lastCurr100 = c100;
   }
 
   int16_t p10 = (int16_t)(Stn.power() * 10.0f);
   if (p10 != _lastPwr10) {
-    Lcd.fillRect(W_VIP_X2, W_VIP_VAL_Y, 88, 15, Pal.bg);
+    Lcd.fillRect(W2_VIP_X2, W2_VIP_VAL_Y, 88, 15, Pal.bg);
     snprintf(buf, sizeof(buf), "%.1fW", Stn.power());
-    Lcd.drawText(W_VIP_X2, W_VIP_VAL_Y, buf, Pal.pCol, Pal.bg, 2);
+    Lcd.drawText(W2_VIP_X2, W2_VIP_VAL_Y, buf, Pal.pCol, Pal.bg, 2);
     _lastPwr10 = p10;
   }
 }
 
-void Ui::drawWideCh() {
+void Ui::drawWideInfoCh() {
   bool chg = (_lastQuickIdx != Stn.quickIdx());
   for (uint8_t i = 0; i < 3; i++)
     chg = chg || (_lastCh[i] != Cfg.quickTemp[i]);
@@ -669,19 +772,98 @@ void Ui::drawWideCh() {
 
   uint8_t idx = Stn.quickIdx();
   for (uint8_t i = 0; i < 3; i++) {
-    int16_t x = W_CH_X0 + (int16_t)i * W_CH_DX;
+    int16_t x = W2_CH_X0 + (int16_t)i * W2_CH_DX;
     bool act = (i == idx);
-    // 整块擦除
-    Lcd.fillRect(x - 2, W_CH_Y - 2, W_CH_DX - 2, 28, Pal.bg);
-    // 参考机风格: 当前通道仅文字绿色高亮, 无底色/边框
+    Lcd.fillRect(x - 2, W2_CH_Y - 2, W2_CH_DX - 2, 28, Pal.bg);
+    // 当前通道仅文字高亮, 无底色/边框
     uint16_t col = act ? Pal.ok : Pal.grid;
-    char lb[4];
-    snprintf(lb, sizeof(lb), "CH%d", i + 1);
-    uint16_t lbBg = Pal.bg;
-    Lcd.drawText(x + 2, W_CH_Y, lb, col, lbBg, 1);
+    char lb[12];
+    snprintf(lb, sizeof(lb), "快捷%d", i + 1);
+    Lcd.drawText(x + 2, W2_CH_Y, lb, col, Pal.bg, 1);
     char num[8];
     snprintf(num, sizeof(num), "%d", (int)Cfg.quickTemp[i]);
-    Lcd.drawText(x + 2, W_CH_VAL_Y, num, col, lbBg, 2);
+    Lcd.drawText(x + 2, W2_CH_VAL_Y, num, col, Pal.bg, 2);
+    _lastCh[i] = Cfg.quickTemp[i];
+  }
+  _lastQuickIdx = idx;
+}
+
+void Ui::drawWideInfoBig() {
+  bool valid = Stn.tipPresent();
+  int16_t v = (int16_t)(Stn.tipTemp() + 0.5f);
+  uint8_t colorKey;
+  uint16_t col;
+  if (!valid) {
+    col = Pal.danger;
+    colorKey = 0;
+  } else if (Stn.mode() == MODE_FAULT) {
+    col = Pal.danger;
+    colorKey = 1;
+  } else if (Stn.mode() == MODE_SLEEP || Stn.mode() == MODE_STANDBY) {
+    col = Pal.accent;
+    colorKey = 2;
+  } else if (Stn.duty() > 0) {
+    col = Pal.danger; // 加热中: 红色大字
+    colorKey = 3;
+  } else {
+    col = Pal.ok;
+    colorKey = 4;
+  }
+
+  if (v == _lastBigTemp && valid == _lastBigValid && colorKey == _lastBigColor)
+    return;
+
+  char buf[8];
+  if (!valid)
+    memcpy(buf, "---", 4);
+  else
+    snprintf(buf, sizeof(buf), "%3d", v);
+  Lcd.fillRect(W2_BIG_X - 2, W2_BIG_Y - 2, 128, 7 * W2_BIG_SCALE + 4, Pal.bg);
+  Lcd.drawText(W2_BIG_X, W2_BIG_Y, buf, col, Pal.bg, W2_BIG_SCALE);
+
+  _lastBigTemp = v;
+  _lastBigValid = valid;
+  _lastBigColor = colorKey;
+}
+
+void Ui::drawWideInfoSet() {
+  int16_t v = Stn.setTemp();
+  if (v == _lastSetTemp)
+    return;
+  Lcd.fillRect(W2_BIG_X - 2, W2_SET_Y - 2, 128, 18, Pal.bg);
+  int16_t x = W2_BIG_X;
+  Lcd.drawText(x, W2_SET_Y, "设定", Pal.accent, Pal.bg, 2);
+  x += Lcd.textWidth("设定 ", 2);
+  char num[8];
+  snprintf(num, sizeof(num), "%d", (int)v);
+  Lcd.drawText(x, W2_SET_Y, num, Pal.ok, Pal.bg, 2);
+  x += Lcd.textWidth(num, 2);
+  char suf[3] = {FONT_DEG, 'C', 0};
+  Lcd.drawText(x + 2, W2_SET_Y + 6, suf, Pal.ok, Pal.bg, 1);
+  _lastSetTemp = v;
+}
+
+// ---- 简洁版(STYLE_BAR) ----
+void Ui::drawWideBoxes() {
+  bool chg = (_lastQuickIdx != Stn.quickIdx());
+  for (uint8_t i = 0; i < 3; i++)
+    chg = chg || (_lastCh[i] != Cfg.quickTemp[i]);
+  if (!chg)
+    return;
+
+  uint8_t idx = Stn.quickIdx();
+  for (uint8_t i = 0; i < 3; i++) {
+    int16_t x = W_CH_X0 + (int16_t)i * (W_CH_BOX_W + W_CH_GAP);
+    bool act = (i == idx);
+    // 圆角框: 当前档青色高亮, 其余暗色描边
+    Lcd.fillRect(x, W_CH_Y, W_CH_BOX_W, W_CH_BOX_H, Pal.bg);
+    drawRoundBox(x, W_CH_Y, W_CH_BOX_W, W_CH_BOX_H, 4,
+                 act ? Pal.info : Pal.grid);
+    char num[8];
+    snprintf(num, sizeof(num), "%d", (int)Cfg.quickTemp[i]);
+    int16_t tw = Lcd.textWidth(num, 2);
+    Lcd.drawText(x + (W_CH_BOX_W - tw) / 2, W_CH_VAL_Y, num,
+                 act ? Pal.info : Pal.fg, Pal.bg, 2);
     _lastCh[i] = Cfg.quickTemp[i];
   }
   _lastQuickIdx = idx;
@@ -701,12 +883,9 @@ void Ui::drawWideBig() {
   } else if (Stn.mode() == MODE_SLEEP || Stn.mode() == MODE_STANDBY) {
     col = Pal.accent;
     colorKey = 2;
-  } else if (Stn.duty() > 0) {
-    col = Pal.danger; // 加热中: 红(对齐参考机大温度红色)
-    colorKey = 3;
   } else {
-    col = Pal.ok;
-    colorKey = 4;
+    col = Pal.fg; // 正常状态白色大字(对齐参考机)
+    colorKey = 3;
   }
 
   if (v == _lastBigTemp && valid == _lastBigValid && colorKey == _lastBigColor)
@@ -717,8 +896,12 @@ void Ui::drawWideBig() {
     memcpy(buf, "---", 4);
   else
     snprintf(buf, sizeof(buf), "%3d", v);
-  Lcd.fillRect(W_BIG_X - 2, W_BIG_Y - 2, 128, 7 * W_BIG_SCALE + 4, Pal.bg);
+  // 大字与右上 °C 一并擦除重绘
+  Lcd.fillRect(W_BIG_X - 4, W_BIG_Y - 6, 3 * 6 * W_BIG_SCALE + 46,
+               7 * W_BIG_SCALE + 12, Pal.bg);
   Lcd.drawText(W_BIG_X, W_BIG_Y, buf, col, Pal.bg, W_BIG_SCALE);
+  char suf[3] = {FONT_DEG, 'C', 0};
+  Lcd.drawText(W_DEG_X, W_DEG_Y, suf, col, Pal.bg, 3);
 
   _lastBigTemp = v;
   _lastBigValid = valid;
@@ -729,19 +912,39 @@ void Ui::drawWideSet() {
   int16_t v = Stn.setTemp();
   if (v == _lastSetTemp)
     return;
-  Lcd.fillRect(W_BIG_X - 2, W_SET_Y - 2, 128, 18, Pal.bg);
-  int16_t x = W_BIG_X;
-  Lcd.drawText(x, W_SET_Y, "SET", Pal.accent, Pal.bg, 2);
-  x += Lcd.textWidth("SET ", 2);
-  char num[8];
-  snprintf(num, sizeof(num), "%d", (int)v);
-  Lcd.drawText(x, W_SET_Y, num, Pal.ok, Pal.bg, 2);
-  x += Lcd.textWidth(num, 2);
-  char suf[3] = {FONT_DEG, 'C', 0};
-  Lcd.drawText(x + 2, W_SET_Y + 6, suf, Pal.ok, Pal.bg, 1);
+  char buf[20];
+  snprintf(buf, sizeof(buf), "设定 %d%cC", (int)v, (char)FONT_DEG);
+  int16_t w = Lcd.textWidth(buf, 2);
+  // 固定区域擦除, 避免数字位数变化残留
+  Lcd.fillRect(60, W_SET_Y - 2, 200, 18, Pal.bg);
+  Lcd.drawText((LCD_W - w) / 2, W_SET_Y, buf, Pal.ok, Pal.bg, 2);
   _lastSetTemp = v;
 }
 
+void Ui::drawWideBar() {
+  uint8_t dp = (uint8_t)((uint32_t)Stn.duty() * 100 / PWM_MAX);
+  if (dp == _lastDutyPct)
+    return;
+  _lastDutyPct = dp;
+
+  const int16_t x = W_BAR_X, y = W_BAR_Y, h = W_BAR_H;
+  // 未点亮部分: 暗色底槽
+  Lcd.fillRect(x, y, W_BAR_W, h, Pal.gridMin);
+  // 自底部向上渐变填充: 顶部黄 -> 底部红
+  int16_t fillH = (int16_t)((int32_t)h * dp / 100);
+  for (int16_t i = 0; i < fillH; i++) {
+    int16_t yy = y + h - 1 - i;
+    uint8_t g = (uint8_t)(255 * i / (h - 1));
+    Lcd.drawHLine(x, yy, W_BAR_W, RGB565(255, g, 0));
+  }
+
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d%%", (int)dp);
+  int16_t tw = Lcd.textWidth(buf, 2);
+  Lcd.fillRect(4, W_PCT_Y - 2, 60, 18, Pal.bg);
+  Lcd.drawText(W_BAR_X + (W_BAR_W - tw) / 2, W_PCT_Y, buf, Pal.ok, Pal.bg, 2);
+}
+// 信息版曲线: 双轴网格(左温度 0..480, 右功率 0..100), 绿=功率% 蓝=温度
 void Ui::drawWideCurve() {
   uint32_t now = millis();
   if (now - _lastHistMs >= 250) {
@@ -752,30 +955,26 @@ void Ui::drawWideCurve() {
     return;
   _histDirty = false;
 
-  const int16_t gx = W_CUR_X0, gw = W_CUR_X1 - W_CUR_X0 + 1;
-  const int16_t gy = W_CUR_Y0, gh = W_CUR_Y1 - W_CUR_Y0 + 1;
+  const int16_t gx = W2_CUR_X0, gw = W2_CUR_X1 - W2_CUR_X0 + 1;
+  const int16_t gy = W2_CUR_Y0, gh = W2_CUR_Y1 - W2_CUR_Y0 + 1;
   const int16_t yb = gy + gh - 1;
 
-  // 绘图区背景
   Lcd.fillRect(gx, gy, gw, gh, Pal.bg);
 
-  // 横向网格 4 条 + 双轴刻度(左温度 0..480, 右功率 0..100)
   char lb[6];
   for (uint8_t i = 0; i < 5; i++) {
     int16_t y = yb - (int16_t)(gh - 1) * i / 4;
     if (i > 0 && i < 4)
       Lcd.drawHLine(gx, y, gw, Pal.grid);
-    int16_t tv = W_CUR_TMAX * i / 4;
+    int16_t tv = W2_CUR_TMAX * i / 4;
     snprintf(lb, sizeof(lb), "%d", (int)tv);
     int16_t tw = Lcd.textWidth(lb, 1);
     Lcd.drawText(gx - 6 - tw, y - 3, lb, Pal.fg, Pal.bg, 1);
     snprintf(lb, sizeof(lb), "%d", (int)(25 * i));
-    Lcd.drawText(W_CUR_X1 + 5, y - 3, lb, Pal.fg, Pal.bg, 1);
-    // 红色刻度短线(对齐参考机: 左右轴各一条)
+    Lcd.drawText(W2_CUR_X1 + 5, y - 3, lb, Pal.fg, Pal.bg, 1);
     Lcd.drawHLine(gx - 3, y, 3, Pal.danger);
-    Lcd.drawHLine(W_CUR_X1 + 1, y, 3, Pal.danger);
+    Lcd.drawHLine(W2_CUR_X1 + 1, y, 3, Pal.danger);
   }
-  // 纵向网格 7 条(次级色)
   for (uint8_t i = 1; i < 8; i++) {
     int16_t x = gx + (int16_t)(gw - 1) * i / 8;
     Lcd.drawVLine(x, gy, gh, Pal.gridMin);
@@ -786,8 +985,8 @@ void Ui::drawWideCurve() {
       (Stn.mode() == MODE_HEAT || Stn.mode() == MODE_BOOST ||
        Stn.mode() == MODE_STANDBY)) {
     int16_t set = Stn.setTemp();
-    if (set > 0 && set <= W_CUR_TMAX) {
-      int16_t sy = yb - (int32_t)set * (gh - 1) / W_CUR_TMAX;
+    if (set > 0 && set <= W2_CUR_TMAX) {
+      int16_t sy = yb - (int32_t)set * (gh - 1) / W2_CUR_TMAX;
       for (int16_t x = gx; x < gx + gw - 5; x += 7)
         Lcd.drawHLine(x, sy, 4, Pal.accent);
     }
@@ -803,9 +1002,9 @@ void Ui::drawWideCurve() {
 
     int16_t py = yb - (int16_t)_powHist[idx] * (gh - 1) / 100;
     int16_t tv = _tempHist[idx];
-    if (tv > W_CUR_TMAX)
-      tv = W_CUR_TMAX;
-    int16_t ty = yb - (int32_t)tv * (gh - 1) / W_CUR_TMAX;
+    if (tv > W2_CUR_TMAX)
+      tv = W2_CUR_TMAX;
+    int16_t ty = yb - (int32_t)tv * (gh - 1) / W2_CUR_TMAX;
 
     if (k > 0) {
       Lcd.drawLine(prevPx, prevPy, x, py, powCol);
@@ -816,27 +1015,6 @@ void Ui::drawWideCurve() {
     prevTx = x;
     prevTy = ty;
   }
-}
-
-void Ui::drawWideBar() {
-  uint8_t dp = (uint8_t)((uint32_t)Stn.duty() * 100 / PWM_MAX);
-  if (dp == _lastDutyPct)
-    return;
-  _lastDutyPct = dp;
-
-  const int16_t gx = W_CUR_X0, gw = W_CUR_X1 - W_CUR_X0 + 1;
-  const int16_t gy = W_CUR_Y0, gh = W_CUR_Y1 - W_CUR_Y0 + 1;
-  Lcd.fillRect(gx, gy, gw, gh, Pal.bg);
-  Lcd.drawRect(gx, gy, gw, gh, Pal.grid);
-  int16_t fillW = (int16_t)(gw - 4) * dp / 100;
-  if (fillW > 0) {
-    uint16_t c = dp > 70 ? Pal.danger : (dp > 40 ? Pal.warn : Pal.ok);
-    Lcd.fillRect(gx + 2, gy + 2, fillW, gh - 4, c);
-  }
-  char buf[12];
-  snprintf(buf, sizeof(buf), "PWR %3d%%", dp);
-  int16_t w = Lcd.textWidth(buf, 4);
-  Lcd.drawText(gx + (gw - w) / 2, gy + gh / 2 - 14, buf, Pal.fg, Pal.bg, 4);
 }
 #endif // LCD_W >= 200
 
@@ -908,16 +1086,25 @@ void Ui::update() {
 #if LCD_W >= 200
     drawWideTip();
     drawWideIcons();
-    drawWideBig();
-    drawWideSet();
-    drawWideVIP();
+    drawWideStatus();
+    if (Cfg.style == STYLE_CURVE) {
+      // 信息版: 电压/电流/功率 + 快捷温度 + 曲线
+      drawWideInfoVIP();
+      drawWideInfoBig();
+      drawWideInfoSet();
 #ifndef NO_INPUT
-    drawWideCh(); // 开机即用版无快捷温度, 不绘制 CH1~CH3
+      drawWideInfoCh();
 #endif
-    if (Cfg.style == STYLE_CURVE)
       drawWideCurve();
-    else
+    } else {
+      // 简洁版: 左侧渐变功率条 + 居中大字 + 圆角快捷温度
+      drawWideBig();
+      drawWideSet();
+#ifndef NO_INPUT
+      drawWideBoxes();
+#endif
       drawWideBar();
+    }
 #else
     drawSmallTip();
     drawStatus();

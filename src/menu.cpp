@@ -22,8 +22,8 @@ Menu MenuCtl;
 // ---------------------------------------------------------------------------
 // SELECT 选项
 // ---------------------------------------------------------------------------
-static const char *const STYLE_OPTS[2] = {"STD", "CURVE"};
-static const char *const THEME_OPTS[2] = {"DARK", "LIGHT"};
+static const char *const STYLE_OPTS[2] = {"标准风格", "曲线风格"};
+static const char *const THEME_OPTS[2] = {"深色主题", "浅色主题"};
 
 // ---------------------------------------------------------------------------
 // ACTION 回调
@@ -44,88 +44,95 @@ static bool stateBoost() { return Stn.boostActive(); }
 // ---------------------------------------------------------------------------
 // 1.基本设置
 static const MenuItem s_basic[] = {
-    {"SOUND", NT_BOOL, &Cfg.soundOn, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"系统声音", NT_BOOL, &Cfg.soundOn, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, nullptr, 0},
-    {"BRIGHT", NT_INT, &Cfg.brightness, 1, 1, 100, 1, 0.0f, 0.0f, 0.0f, nullptr,
-     0, "%", nullptr, nullptr, nullptr, 0},
-    {"MIN TMP", NT_INT, &Cfg.tempMin, 2, 50, 400, 5, 0.0f, 0.0f, 0.0f, nullptr,
+    {"系统亮度", NT_INT, &Cfg.brightness, 1, 1, 100, 1, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
+    {"最低温度", NT_INT, &Cfg.tempMin, 2, 50, 400, 5, 0.0f, 0.0f, 0.0f, nullptr,
      0, "C", nullptr, nullptr, nullptr, 0},
-    {"MAX TMP", NT_INT, &Cfg.tempMax, 2, 200, 500, 5, 0.0f, 0.0f, 0.0f, nullptr,
-     0, "C", nullptr, nullptr, nullptr, 0},
-    {"STEP", NT_INT, &Cfg.tempStep, 1, 1, 50, 1, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"最高温度", NT_INT, &Cfg.tempMax, 2, 200, 500, 5, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"温度步进", NT_INT, &Cfg.tempStep, 1, 1, 50, 1, 0.0f, 0.0f, 0.0f, nullptr, 0,
      "C", nullptr, nullptr, nullptr, 0},
+};
+
+// 参数调整 (工具设置下级): PID 参数 + 功率输出
+static const MenuItem s_pid[] = {
+    {"比例项", NT_FLOAT, &Cfg.pidP, 4, 0, 0, 0, 1.0f, 100.0f, 0.5f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"积分项", NT_FLOAT, &Cfg.pidI, 4, 0, 0, 0, 0.0f, 5.0f, 0.1f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"微分项", NT_FLOAT, &Cfg.pidD, 4, 0, 0, 0, 0.0f, 100.0f, 0.5f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"控制带宽", NT_FLOAT, &Cfg.pidBand, 4, 0, 0, 0, 1.0f, 100.0f, 1.0f, nullptr,
+     0, nullptr, nullptr, nullptr, nullptr, 0},
+    {"功率输出", NT_INT, &Cfg.powerLimitPct, 1, 10, 100, 5, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
 };
 
 // 2.工具设置
 static const MenuItem s_tools[] = {
-    {"STBY T", NT_INT, &Cfg.standbyTemp, 2, 50, 300, 5, 0.0f, 0.0f, 0.0f,
+    {"待机温度", NT_INT, &Cfg.standbyTemp, 2, 50, 300, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"STBY M", NT_INT, &Cfg.standbyTimeMin, 1, 0, 30, 1, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "M", nullptr, nullptr, nullptr, 0},
-    {"SLEEP M", NT_INT, &Cfg.sleepTimeMin, 1, 0, 120, 1, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "M", nullptr, nullptr, nullptr, 0},
-    {"Q TMP1", NT_INT, &Cfg.quickTemp[0], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
+    // 待机时间/休眠时间 单位: 分钟(0=不启用)
+    {"待机时间", NT_INT, &Cfg.standbyTimeMin, 1, 0, 30, 1, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
+    {"休眠时间", NT_INT, &Cfg.sleepTimeMin, 1, 0, 120, 1, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
+    {"快捷一", NT_INT, &Cfg.quickTemp[0], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"Q TMP2", NT_INT, &Cfg.quickTemp[1], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
+    {"快捷二", NT_INT, &Cfg.quickTemp[1], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"Q TMP3", NT_INT, &Cfg.quickTemp[2], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
+    {"快捷三", NT_INT, &Cfg.quickTemp[2], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"BOOST", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"升压", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, actBoost, stateBoost, nullptr, 0},
-    {"P", NT_FLOAT, &Cfg.pidP, 4, 0, 0, 0, 1.0f, 100.0f, 0.5f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"I", NT_FLOAT, &Cfg.pidI, 4, 0, 0, 0, 0.0f, 5.0f, 0.1f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"D", NT_FLOAT, &Cfg.pidD, 4, 0, 0, 0, 0.0f, 100.0f, 0.5f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"BAND", NT_FLOAT, &Cfg.pidBand, 4, 0, 0, 0, 1.0f, 100.0f, 1.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"POWER", NT_INT, &Cfg.powerLimitPct, 1, 10, 100, 5, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
+    {"参数调整", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_pid, 5},
     // 滚珠开关: 待机时间=0 时此项无意义; 需硬件引接 PIN_VIBRATION
-    {"VIB SW", NT_BOOL, &Cfg.vibEnable, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr,
+    {"滚珠开关", NT_BOOL, &Cfg.vibEnable, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr,
      0, nullptr, nullptr, nullptr, nullptr, 0},
 };
 
 // 3.主题风格
 static const MenuItem s_theme[] = {
-    {"STYLE", NT_SELECT, &Cfg.style, 1, 0, 1, 1, 0, 0, 0, STYLE_OPTS, 2,
+    {"系统风格", NT_SELECT, &Cfg.style, 1, 0, 1, 1, 0, 0, 0, STYLE_OPTS, 2,
      nullptr, nullptr, nullptr, nullptr, 0},
-    {"THEME", NT_SELECT, &Cfg.theme, 1, 0, 1, 1, 0, 0, 0, THEME_OPTS, 2,
+    {"系统主题", NT_SELECT, &Cfg.theme, 1, 0, 1, 1, 0, 0, 0, THEME_OPTS, 2,
      nullptr, nullptr, nullptr, nullptr, 0},
 };
 
-// 4.校准 (全屏可视化校准页: 实时 V/I/P/T + 曲线; 改动立即生效)
+// 4.温度校准 (全屏可视化校准页: 实时 V/I/P/T + 曲线; 改动立即生效)
 static const MenuItem s_calib[] = {
-    {"VBUS K", NT_FLOAT, &Cfg.vbusK, 4, 0, 0, 0, 1.0f, 10.0f, 0.1f, nullptr, 0,
+    {"电压系数", NT_FLOAT, &Cfg.vbusK, 4, 0, 0, 0, 1.0f, 10.0f, 0.1f, nullptr, 0,
      nullptr, nullptr, nullptr, nullptr, 0},
-    {"CJC", NT_FLOAT, &Cfg.cjcOffset, 4, 0, 0, 0, -30.0f, 30.0f, 0.5f, nullptr,
-     0, "C", nullptr, nullptr, nullptr, 0},
-    {"T CAL", NT_FLOAT, &Cfg.tempCal, 4, 0, 0, 0, 80.0f, 120.0f, 0.1f, nullptr,
-     0, "%", nullptr, nullptr, nullptr, 0},
+    {"冷端补偿", NT_FLOAT, &Cfg.cjcOffset, 4, 0, 0, 0, -30.0f, 30.0f, 0.5f,
+     nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"温度校准", NT_FLOAT, &Cfg.tempCal, 4, 0, 0, 0, 80.0f, 120.0f, 0.1f,
+     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
 };
 
 // 5.系统重置
 static const MenuItem s_reset[] = {
-    {"CFG RST", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"重置配置", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, actResetCfg, nullptr, nullptr, 0},
-    {"SYS RST", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"系统重置", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, actResetAll, nullptr, nullptr, 0},
 };
 
 // 根菜单
 static const MenuItem s_root[] = {
-    {"BASIC", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"基本设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_basic, 5},
-    {"TOOLS", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_tools, 13},
-    {"THEME", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"工具设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tools, 9},
+    {"主题风格", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_theme, 2},
-    {"CALIB", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"温度校准", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_calib, 3},
-    {"RESET", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"系统重置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_reset, 2},
-    {"ABOUT", NT_INFO, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+    {"关于本机", NT_INFO, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, nullptr, 0},
 };
 
@@ -162,7 +169,7 @@ void Menu::enter() {
   _stack[0].count = 6;
   _stack[0].sel = 0;
   _stack[0].top = 0;
-  _stack[0].title = "MENU";
+  _stack[0].title = "主菜单";
   _editing = false;
   _editItem = nullptr;
   _active = true;
@@ -358,7 +365,7 @@ static void buildValue(const MenuItem *it, char *out, size_t n) {
     snprintf(out, n, ">");
     break;
   case NT_BOOL:
-    snprintf(out, n, "%s", *(uint8_t *)it->ptr ? "ON" : "OFF");
+    snprintf(out, n, "%s", *(uint8_t *)it->ptr ? "开" : "关");
     break;
   case NT_INT: {
     int32_t v = readInt(it);
@@ -377,9 +384,9 @@ static void buildValue(const MenuItem *it, char *out, size_t n) {
   } break;
   case NT_ACTION:
     if (it->stateFn)
-      snprintf(out, n, "%s", it->stateFn() ? "ON" : "OFF");
+      snprintf(out, n, "%s", it->stateFn() ? "开" : "关");
     else
-      snprintf(out, n, "RUN");
+      snprintf(out, n, "执行");
     break;
   case NT_INFO:
   default:
@@ -434,9 +441,9 @@ void Menu::render() {
     bool edit = _editing && _editItem == it;
     uint8_t flags = (sel ? 1 : 0) | (edit ? 2 : 0);
 
-    char lab[16];
+    char lab[24];
     snprintf(lab, sizeof(lab), "%s%s", edit ? "#" : "", it->label);
-    char val[10];
+    char val[16];
     buildValue(it, val, sizeof(val));
     // 编辑中显示暂存值而非已存值
     if (edit) {

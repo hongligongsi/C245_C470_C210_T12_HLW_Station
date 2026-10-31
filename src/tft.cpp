@@ -5,6 +5,7 @@
 #include "tft.h"
 #include "board.h"
 #include "font5x7.h"
+#include "font_cn.h"
 #include <hc32_ddl.h>
 
 // 屏幕物理偏移 (不同玻璃批次可能不同, 可在 platformio.ini 覆盖)
@@ -284,20 +285,97 @@ void Tft::drawChar(int16_t x, int16_t y, char ch, uint16_t fg, uint16_t bg,
     fillRect(x + FONT_W * scale, y, scale, FONT_H * scale, bg);
 }
 
+// UTF-8 解码: 成功返回 true 并写入码点, 字符串结束返回 false
+static bool utf8Decode(const char *&p, uint32_t &cp) {
+  uint8_t b = (uint8_t)*p;
+  if (b == 0)
+    return false;
+  if (b < 0x80) {
+    cp = b;
+    p++;
+    return true;
+  }
+  uint8_t n;
+  if ((b & 0xE0) == 0xC0) {
+    cp = b & 0x1F;
+    n = 1;
+  } else if ((b & 0xF0) == 0xE0) {
+    cp = b & 0x0F;
+    n = 2;
+  } else if ((b & 0xF8) == 0xF0) {
+    cp = b & 0x07;
+    n = 3;
+  } else { // 非法首字节, 跳过
+    p++;
+    cp = 0xFFFD;
+    return true;
+  }
+  p++;
+  for (uint8_t i = 0; i < n; i++) {
+    if (((uint8_t)*p & 0xC0) != 0x80) {
+      cp = 0xFFFD;
+      return true;
+    }
+    cp = (cp << 6) | ((uint8_t)*p & 0x3F);
+    p++;
+  }
+  return true;
+}
+
+// 12x12 汉字: 逐行按连续段填充, 未收录的字符留空
+void Tft::drawCnChar(int16_t x, int16_t y, uint32_t cp, uint16_t fg,
+                     uint16_t bg) {
+  const CnGlyph *g = fontCn(cp);
+  if (!g)
+    return;
+  for (uint8_t r = 0; r < CN_H; r++) {
+    uint16_t bits = g->row[r];
+    uint8_t c = 0;
+    while (c < CN_W) {
+      bool on = (bits >> (15 - c)) & 1u;
+      uint8_t n = 1;
+      while (c + n < CN_W &&
+             (((bits >> (15 - c - n)) & 1u) == (on ? 1u : 0u)))
+        n++;
+      if (on || bg != COL_TRANS)
+        fillRect(x + c, y + r, (int16_t)n, 1, on ? fg : bg);
+      c += n;
+    }
+  }
+  if (bg != COL_TRANS) // 字间 1px 间隔
+    fillRect(x + CN_W, y, 1, CN_H, bg);
+}
+
 void Tft::drawText(int16_t x, int16_t y, const char *s, uint16_t fg,
                    uint16_t bg, uint8_t scale) {
   int16_t cx = x;
-  while (*s) {
-    char ch = *s++;
-    if (ch >= 'a' && ch <= 'z')
-      ch -= 32;
-    drawChar(cx, y, ch, fg, bg, scale);
-    cx += (FONT_W + 1) * scale;
+  uint32_t cp;
+  while (utf8Decode(s, cp)) {
+    if (cp < 0x80) {
+      char ch = (char)cp;
+      if (ch >= 'a' && ch <= 'z')
+        ch -= 32;
+      drawChar(cx, y, ch, fg, bg, scale);
+      cx += (FONT_W + 1) * scale;
+    } else {
+      // 汉字固定 12px: 相对 7*scale 高 ASCII 垂直居中
+      int16_t cy = y + (int16_t)((FONT_H * scale - CN_H) / 2);
+      drawCnChar(cx, cy, cp, fg, bg);
+      cx += CN_ADV;
+    }
   }
 }
 
 int16_t Tft::textWidth(const char *s, uint8_t scale) {
-  return (int16_t)(strlen(s) * (FONT_W + 1) * scale);
+  int16_t w = 0;
+  uint32_t cp;
+  while (utf8Decode(s, cp)) {
+    if (cp < 0x80)
+      w += (FONT_W + 1) * scale;
+    else
+      w += CN_ADV;
+  }
+  return w;
 }
 
 void Tft::present() {

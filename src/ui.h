@@ -48,15 +48,21 @@ private:
   void pushHistory();
 
   // --- 320x240 宽屏布局 (LCD_W>=200) ---
-  void drawWideFrame(bool curve);
+  void drawWideFrame(bool info); // true=信息版(STYLE_CURVE), false=简洁版(STYLE_BAR)
   void drawWideTip();
-  void drawWideIcons(); // 顶栏状态图标: 沙漏/月亮/喇叭
-  void drawWideVIP();
-  void drawWideCh();
-  void drawWideBig();
-  void drawWideSet();
+  void drawWideIcons();  // 顶栏状态图标: 沙漏/月亮/喇叭
+  void drawWideStatus(); // 顶栏状态提示文字(重启恢复/换芯中/短路过载...) 
+  // 信息版(STYLE_CURVE)
+  void drawWideInfoVIP();
+  void drawWideInfoCh();
+  void drawWideInfoBig();
+  void drawWideInfoSet();
   void drawWideCurve(); // 双轴刻度网格: 绿=功率% 蓝=温度
-  void drawWideBar();   // 标准风格: 大功率条
+  // 简洁版(STYLE_BAR)
+  void drawWideBar();   // 左侧竖向渐变功率条
+  void drawWideBoxes(); // 底部三个圆角快捷温度框
+  void drawWideBig();   // 居中大字温度
+  void drawWideSet();   // 居中 SET 行
   uint32_t _lastMs = 0;
   uint32_t _lastHistMs = 0;
   bool _histDirty = true; // 曲线需重绘
@@ -88,6 +94,9 @@ private:
   int16_t _lastPwr10 = -1;   // 宽屏: 0.1W
   uint8_t _lastTipType = 0xFF;
   uint8_t _lastHdrIcons = 0xFF; // 宽屏顶栏图标状态缓存
+  uint8_t _lastStatus = 0xFF;   // 宽屏顶栏状态文字缓存
+  uint32_t _bootMs = 0;         // 开机时刻(前 1.5s 显示"重启恢复")
+  uint32_t _tipChgMs = 0;       // 换芯时刻(1.2s 内显示"换芯中")
   int16_t _lastCh[3] = {-1, -1, -1};
   uint8_t _lastQuickIdx = 0xFF;
   int8_t _lastAmbient = -100;

@@ -107,18 +107,19 @@ void CalibPage::render() {
     // 顶栏(反色)
     Lcd.fillRect(0, 0, LCD_W, C_HDR_H, Pal.fg);
     Lcd.drawText(3, (C_HDR_H - 14) / 2, _item->label, Pal.bg, Pal.fg, 2);
-    const char *hint = "CLICK=SAVE  HOLD=EXIT";
+    const char *hint = "轻按保存 长按退出";
     int16_t hw = Lcd.textWidth(hint, 1);
     Lcd.drawText(LCD_W - hw - 4, C_HDR_H / 2 - 3, hint, Pal.bg, Pal.fg, 1);
 
     // 实时数据盒
     Lcd.drawRect(C_BOX_X, C_BOX_Y, C_BOX_W, C_BOX_H, Pal.grid);
-    Lcd.drawText(C_BOX_X + 4, C_BOX_Y - 5, "LIVE", Pal.grid, Pal.bg, 1);
+    Lcd.drawText(C_BOX_X + C_BOX_W - 30, C_BOX_Y + C_BOX_H - 18, "实时", Pal.grid,
+                 Pal.bg, 1);
 
     // 值编辑: <  value  >
     Lcd.drawText(164, C_VAL_Y + 8, "<", Pal.warn, Pal.bg, 3);
     Lcd.drawText(300, C_VAL_Y + 8, ">", Pal.warn, Pal.bg, 3);
-    const char *vh = "ADJUST";
+    const char *vh = "调整";
     Lcd.drawText((320 - Lcd.textWidth(vh, 1)) / 2 + 20, 42, vh, Pal.grid,
                  Pal.bg, 1);
 
@@ -134,21 +135,21 @@ void CalibPage::render() {
   if (v10 != _v10) {
     Lcd.fillRect(C_BOX_X + 2, 32, C_BOX_W - 4, 9, Pal.bg);
     snprintf(buf, sizeof(buf), "%.1f V", Stn.vbus());
-    drawLiveRow(C_BOX_X + 6, 33, "V", buf, COL_BLUE);
+    drawLiveRow(C_BOX_X + 6, 33, "电压", buf, COL_BLUE);
     _v10 = v10;
   }
   int16_t c100 = (int16_t)(Stn.current() * 100.0f);
   if (c100 != _c100) {
     Lcd.fillRect(C_BOX_X + 2, 50, C_BOX_W - 4, 9, Pal.bg);
     snprintf(buf, sizeof(buf), "%.2f A", Stn.current());
-    drawLiveRow(C_BOX_X + 6, 51, "A", buf, COL_YELLOW);
+    drawLiveRow(C_BOX_X + 6, 51, "电流", buf, COL_YELLOW);
     _c100 = c100;
   }
   int16_t p10 = (int16_t)(Stn.power() * 10.0f);
   if (p10 != _p10) {
     Lcd.fillRect(C_BOX_X + 2, 68, C_BOX_W - 4, 9, Pal.bg);
     snprintf(buf, sizeof(buf), "%.1f W", Stn.power());
-    drawLiveRow(C_BOX_X + 6, 69, "P", buf, COL_MAGENTA);
+    drawLiveRow(C_BOX_X + 6, 69, "功率", buf, COL_MAGENTA);
     _p10 = p10;
   }
   int16_t t1 = Stn.tipPresent() ? (int16_t)(Stn.tipTemp() + 0.5f) : -1;
@@ -156,9 +157,9 @@ void CalibPage::render() {
     Lcd.fillRect(C_BOX_X + 2, 86, C_BOX_W - 4, 9, Pal.bg);
     if (Stn.tipPresent()) {
       snprintf(buf, sizeof(buf), "%d C", (int)t1);
-      drawLiveRow(C_BOX_X + 6, 87, "T", buf, Pal.danger);
+      drawLiveRow(C_BOX_X + 6, 87, "温度", buf, Pal.danger);
     } else {
-      drawLiveRow(C_BOX_X + 6, 87, "T", "---", Pal.danger);
+      drawLiveRow(C_BOX_X + 6, 87, "温度", "---", Pal.danger);
     }
     _t1 = t1;
     _tValid = Stn.tipPresent();

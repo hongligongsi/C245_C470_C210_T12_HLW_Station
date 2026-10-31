@@ -60,7 +60,7 @@ static void fillDefaults() {
   Cfg.powerLimitPct = 70;
 
   // 主题
-  Cfg.style = STYLE_CURVE;
+  Cfg.style = STYLE_STANDARD; // 默认简洁版, 菜单可切换信息版
   Cfg.theme = THEME_DARK;
 
   // 校准
