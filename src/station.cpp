@@ -59,11 +59,17 @@ void Station::begin() {
 
   syncConfig();
 
-  // 上电默认温度取快捷温度1, 限幅
-  if (Cfg.quickTemp[0] >= Cfg.tempMin && Cfg.quickTemp[0] <= Cfg.tempMax)
-    _setTemp = Cfg.quickTemp[0];
+  // 上电默认温度取快捷温度第 2 档(350), 限幅
+  _quickIdx = 1;
+  if (Cfg.quickTemp[_quickIdx] >= Cfg.tempMin && Cfg.quickTemp[_quickIdx] <= Cfg.tempMax)
+    _setTemp = Cfg.quickTemp[_quickIdx];
   else
     _setTemp = TEMP_DEFAULT_C;
+
+#ifdef BOOT_POWER_ON
+  // 开机即用版: 上电直接进入开机状态, 插入手柄即可加热
+  _powerOn = true;
+#endif
 
   _bootMs = millis();
   _lastInputMs = _bootMs;

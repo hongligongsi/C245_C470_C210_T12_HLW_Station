@@ -41,10 +41,14 @@ static void fillDefaults() {
   // 工具
   Cfg.standbyTemp = TEMP_STANDBY_C;
   Cfg.standbyTimeMin = 0; // 无震动开关, 禁用
-  Cfg.sleepTimeMin = 30;
-  Cfg.quickTemp[0] = 200;
-  Cfg.quickTemp[1] = 300;
-  Cfg.quickTemp[2] = 380;
+#ifdef NO_INPUT
+  Cfg.sleepTimeMin = 5; // 开机即用版(无输入): 5 分钟后停热
+#else
+  Cfg.sleepTimeMin = 10; // 其余版本默认 10 分钟, 菜单可改
+#endif
+  Cfg.quickTemp[0] = 300;
+  Cfg.quickTemp[1] = 350;
+  Cfg.quickTemp[2] = 400;
   Cfg.boostOn = 0;
   Cfg.vibEnable = 0; // V1.7 板未引出震动开关, 默认关; 需配合非0待机时间
   // PID 默认(用户规格: 25 / 0.3 / 15)

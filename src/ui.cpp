@@ -572,10 +572,12 @@ void Ui::drawWideFrame(bool curve) {
   Lcd.drawVLine(W_VIP_X1 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
   Lcd.drawVLine(W_VIP_X2 - 8, W_VIP_LBL_Y - 2, 25, Pal.gridMin);
 
+#ifndef NO_INPUT
   // CH1/CH2/CH3 标签(当前槽颜色在 drawWideCh 覆盖)
   Lcd.drawText(W_CH_X0, W_CH_Y, "CH1", Pal.grid, Pal.bg, 1);
   Lcd.drawText(W_CH_X0 + W_CH_DX, W_CH_Y, "CH2", Pal.grid, Pal.bg, 1);
   Lcd.drawText(W_CH_X0 + 2 * W_CH_DX, W_CH_Y, "CH3", Pal.grid, Pal.bg, 1);
+#endif
 
   // 曲线区下沿/footer 分隔线
   Lcd.drawHLine(0, W_CUR_Y1 + 3, LCD_W, Pal.grid);
@@ -909,7 +911,9 @@ void Ui::update() {
     drawWideBig();
     drawWideSet();
     drawWideVIP();
-    drawWideCh();
+#ifndef NO_INPUT
+    drawWideCh(); // 开机即用版无快捷温度, 不绘制 CH1~CH3
+#endif
     if (Cfg.style == STYLE_CURVE)
       drawWideCurve();
     else

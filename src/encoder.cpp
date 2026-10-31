@@ -15,7 +15,16 @@ Encoder Enc;
 #define BTN_HOLD_MS 800
 #define BTN_REPEAT_MS 180
 
-#ifdef INPUT_BUTTONS
+#if defined(NO_INPUT)
+
+// ---------------------------------------------------------------------------
+// 无输入版本 (-DNO_INPUT): 不占用按键 / EC11 引脚(PA0/PA1/PA2), 也不扫描
+// ---------------------------------------------------------------------------
+void Encoder::begin() {}
+
+void Encoder::tick() {}
+
+#elif defined(INPUT_BUTTONS)
 
 // ---------------------------------------------------------------------------
 // 按键版固件 (-DINPUT_BUTTONS): 加/减/确认 三键, 对外接口与编码器版完全一致

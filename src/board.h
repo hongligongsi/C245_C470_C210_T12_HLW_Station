@@ -135,7 +135,7 @@
 #define PWM_MAX 255
 #define TEMP_MIN_C 100
 #define TEMP_MAX_C 450
-#define TEMP_DEFAULT_C 320
+#define TEMP_DEFAULT_C 350
 #define TEMP_BOOST_ADD_C 48 // 一键升温增量
 
 #define HOLD_SLEEP_MS 2000 // 支架信号持续 -> 休眠
