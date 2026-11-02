@@ -1,11 +1,17 @@
 #include "station.h"
 #include "board.h"
+#include "tc_table.h"
 
 // 内部温度传感器(冷结补偿)在 ddl_config.h 开启 DDL_OTS_ENABLE 后可用,
 // 可用 build_flags 加 -DUSE_OTS 启用; 不启用时使用固定 25C 估算。
 #ifdef USE_OTS
 #include <OnChipTemperature.h>
 #endif
+
+// 手柄参数表按 TipType 顺序索引, 枚举一变立刻报错
+static_assert((int)TIP_T12 == TIP_T12_IDX, "TipType 顺序须与 settings.h 一致");
+static_assert((int)TIP_C210 == TIP_C210_IDX, "TipType 顺序须与 settings.h 一致");
+static_assert((int)TIP_C245 == TIP_C245_IDX, "TipType 顺序须与 settings.h 一致");
 
 Station Stn;
 
@@ -18,6 +24,32 @@ static float rawToMv(uint16_t raw) {
 
 // 运行时分压系数: 用 Cfg.vbusK 校准
 static inline float vbusDivK() { return (VDIV_RTOP_K + Cfg.vbusK) / Cfg.vbusK; }
+
+// ---------------------------------------------------------------------------
+// ADC 原始值 → 温度
+//   1) 减上电零位, 换算成运放输出电压
+//   2) 除以差分增益得到热电偶电动势(µV)
+//   3) 温度校准(tempCal)按比例修正电动势(运放增益/热电偶分散性)
+//   4) K 型分度表 + 冷端补偿 → 摄氏温度
+//
+// 对应逆向报告: 0x63EA(温度查表) / 0x2209C(按类型换算) / 0x21E48(冷端归一化)
+// 与原厂的差别: 原厂用芯片内 16 位码表(bin 内无初值, 需实物读取), 本工程改用
+// NIST K 型标准分度表; 相比早期固件的固定 41µV/°C 线性近似, 500°C 处可消掉
+// 约 3.5°C 的固有偏差, 冷端补偿也从"温度相加"改成物理正确的"电动势相加"。
+// ---------------------------------------------------------------------------
+float Station::rawToTemp(float raw) const {
+  float v = (raw - _zeroRaw) * (ADC_VREF_MV / 1000.0f / ADC_FULL) / TC_AMP_GAIN;
+  float uv = v * 1000000.0f;
+  uv *= Cfg.tempCal * 0.01f; // 350°C 单点增益校准(作用于实测电动势)
+  float cj = _ambient + Cfg.cjcOffset; // 冷端(手柄接口)温度
+
+#ifdef TC_LINEAR_UV_PER_C
+  // 兼容开关: 用固定塞贝克系数线性换算(旧行为), -DTC_LINEAR_UV_PER_C=41
+  return cj + uv / (float)TC_LINEAR_UV_PER_C;
+#else
+  return TcTable::compensateAndConvert(uv, cj);
+#endif
+}
 
 const char *Station::tipName() const {
   switch (_tipType) {
@@ -47,6 +79,11 @@ void Station::begin() {
   // 滚珠/震动开关(手柄内弹簧开关, 低有效): T12 震动唤醒用
   pinMode(PIN_VIBRATION, INPUT_PULLUP);
 #endif
+#ifdef PIN_ALARM
+  // 故障/过温报警输出(对应原厂 0x19EC 拉高报警脚)
+  pinMode(PIN_ALARM, OUTPUT);
+  digitalWrite(PIN_ALARM, LOW);
+#endif
 
   // ---- 加热 PWM (TIMA1_CH2, 1kHz 硬件 PWM) ----
   pinMode(PIN_HEATER_PWM, OUTPUT_PWM);
@@ -59,12 +96,15 @@ void Station::begin() {
 
   syncConfig();
 
-  // 上电默认温度取快捷温度第 2 档(350), 限幅
+  // 上电默认温度取快捷温度第 2 档(350), 限幅到当前手柄允许范围
   _quickIdx = 1;
-  if (Cfg.quickTemp[_quickIdx] >= Cfg.tempMin && Cfg.quickTemp[_quickIdx] <= Cfg.tempMax)
+  if (Cfg.quickTemp[_quickIdx] >= Cfg.tempMin &&
+      (float)Cfg.quickTemp[_quickIdx] <= _tempMaxEff)
     _setTemp = Cfg.quickTemp[_quickIdx];
   else
     _setTemp = TEMP_DEFAULT_C;
+  if ((float)_setTemp > _tempMaxEff)
+    _setTemp = (int16_t)_tempMaxEff;
 
 #ifdef BOOT_POWER_ON
   // 开机即用版: 上电直接进入开机状态, 插入手柄即可加热
@@ -98,18 +138,49 @@ void Station::begin() {
     _zeroRaw = z;
 }
 
-void Station::syncConfig() {
-  _pidP = Cfg.pidP;
-  _pidI = Cfg.pidI;
-  _pidD = Cfg.pidD;
+void Station::syncConfig() { applyTipProfile(); }
+
+// ---------------------------------------------------------------------------
+// 手柄参数装载: 按识别出的型号取 PID / 功率上限 / 温度上限
+//   对应原厂 0x1F68C: 识别到型号后从"类型参数表"装载 Kp/Ki/Kd 与定时参数;
+//   识别异常时回退默认模板, 保证不会用错误参数加热。
+// ---------------------------------------------------------------------------
+void Station::applyTipProfile() {
+  uint8_t i = (uint8_t)_tipType;
+  if (i >= TIP_TYPE_COUNT)
+    i = TIP_T12_IDX;
+
+  // 温度上限: 全局上限与手柄上限取小(0 表示该型不单独限制)
+  _tempMaxEff = (float)Cfg.tempMax;
+  if (Cfg.tipTempMax[i] > 0 && (float)Cfg.tipTempMax[i] < _tempMaxEff)
+    _tempMaxEff = (float)Cfg.tipTempMax[i];
+
+  // 功率上限: 全局上限与手柄上限取小(0 表示跟随全局)
+  _powerLimitPct = Cfg.powerLimitPct;
+  if (Cfg.tipPowerPct[i] > 0 && Cfg.tipPowerPct[i] < _powerLimitPct)
+    _powerLimitPct = Cfg.tipPowerPct[i];
+
+  // PID: 跟随手柄时用该型参数, 全 0(未配置/参数损坏)回退全局
+  float kp = Cfg.pidP, ki = Cfg.pidI, kd = Cfg.pidD;
+  if (Cfg.pidFollowTip) {
+    float tp = Cfg.tipPid[i][0], ti = Cfg.tipPid[i][1], td = Cfg.tipPid[i][2];
+    if (tp > 0.0f || ti > 0.0f || td > 0.0f) {
+      kp = tp;
+      ki = ti;
+      kd = td;
+    }
+  }
+  _pidP = kp;
+  _pidI = ki;
+  _pidD = kd;
   _pidIlimit = Cfg.pidIntegralMax;
   _pidBand = Cfg.pidBand;
-  _powerLimitPct = Cfg.powerLimitPct;
-  // 钳位当前设定温度到新范围
+
+  // 设定温度钳位到新型号的上限
+  if ((float)_setTemp > _tempMaxEff)
+    _setTemp = (int16_t)_tempMaxEff;
   if (_setTemp < Cfg.tempMin)
     _setTemp = Cfg.tempMin;
-  if (_setTemp > Cfg.tempMax)
-    _setTemp = Cfg.tempMax;
 }
 
 void Station::setHeater(uint8_t d) {
@@ -126,8 +197,8 @@ void Station::adjustSetTemp(int16_t delta) {
   int16_t v = (int16_t)_setTemp + dv;
   if (v < Cfg.tempMin)
     v = Cfg.tempMin;
-  if (v > Cfg.tempMax)
-    v = Cfg.tempMax;
+  if ((float)v > _tempMaxEff)
+    v = (int16_t)_tempMaxEff;
   // 任何调温操作都视为用户输入: 开机并解除休眠
   _powerOn = true;
   _sleeping = false;
@@ -171,8 +242,8 @@ int16_t Station::cycleQuickTemp() {
   int16_t t = Cfg.quickTemp[_quickIdx];
   if (t < Cfg.tempMin)
     t = Cfg.tempMin;
-  if (t > Cfg.tempMax)
-    t = Cfg.tempMax;
+  if ((float)t > _tempMaxEff)
+    t = (int16_t)_tempMaxEff;
   _setTemp = t;
   // 短按循环快捷温度: 同时开机并解除休眠
   _powerOn = true;
@@ -234,6 +305,15 @@ void Station::sampleStep(uint32_t now) {
   }
   float tRaw = (burst[0] + burst[1] + burst[2]) / 3.0f;
   _tipRaw = (uint16_t)tRaw;
+
+  // --- 10 点滑动窗口(对应原厂 0x65E8 环形写入 / 0xAAE0 求和÷10) ---
+  // 5ms 节拍写入 => 窗口 ≈ 50ms; 均值用于显示与超温/看门狗判定(抗单次尖峰)
+  _winSum -= _win[_winIdx];
+  _win[_winIdx] = _tipRaw;
+  _winSum += _tipRaw;
+  _winIdx = (uint8_t)((_winIdx + 1) % 10);
+  if (_winCount < 10)
+    _winCount++;
 
   // 上电冷态零位继续收敛
   if (now - _bootMs < 1500 && tRaw < TIP_RAW_OPEN) {
@@ -309,6 +389,8 @@ void Station::logicStep(uint32_t now) {
       _idCandidateMs = now;
     } else if (now - _idCandidateMs > 300) {
       _tipType = guess;
+      // 换手柄: 装载该型号的 PID / 功率上限 / 温度上限(对应原厂 0x1F68C)
+      applyTipProfile();
     }
   } else {
     _idCandidate = guess;
@@ -416,7 +498,7 @@ void Station::logicStep(uint32_t now) {
   }
 
   // --- 冷态零位缓慢跟踪(纠零点漂移) ---
-  if (_tipPresent && _duty == 0 && _tipTemp < _ambient + 5.0f) {
+  if (_tipPresent && _duty == 0 && _tipTempAvg < _ambient + 5.0f) {
     if (_coldSinceMs == 0)
       _coldSinceMs = now;
     if (now - _coldSinceMs > 10000UL && _tipRaw < TIP_RAW_PRESENT)
@@ -430,16 +512,22 @@ void Station::logicStep(uint32_t now) {
 // PID 控温 (50ms)
 // ---------------------------------------------------------------------------
 void Station::controlStep(uint32_t now) {
-  // 温度换算
-  float vTc = ((float)_tipRaw - _zeroRaw) * (3.3f / ADC_FULL) / TC_AMP_GAIN;
-  float dT = vTc * 1000000.0f / TC_SEEBEK_UV_PER_C;
-  // 冷结偏移(CJC) + 350° 单点增益(tempCal%, 100=不修正, 作用于热电偶温升)
-  float t = _ambient + Cfg.cjcOffset + dT * (Cfg.tempCal * 0.01f);
-  if (t < 0.0f)
-    t = 0.0f;
-  if (t > 600.0f)
-    t = 600.0f;
-  _tipTemp = _tipTemp * 0.55f + t * 0.45f;
+  // ---- 温度换算 ----
+  // 控制环用快速滤波值(相位滞后小), 显示/超温判定用 10 点窗口均值(抗尖峰)
+  float tFast = rawToTemp((float)_tipRaw);
+  if (tFast < -20.0f)
+    tFast = -20.0f;
+  if (tFast > 600.0f)
+    tFast = 600.0f;
+  _tipTemp = _tipTemp * 0.55f + tFast * 0.45f;
+
+  float rawWin = _winCount ? (float)_winSum / (float)_winCount : (float)_tipRaw;
+  float tSlow = rawToTemp(rawWin);
+  if (tSlow < -20.0f)
+    tSlow = -20.0f;
+  if (tSlow > 600.0f)
+    tSlow = 600.0f;
+  _tipTempAvg = tSlow;
 
   uint32_t idle = now - _lastInputMs;
 
@@ -458,8 +546,8 @@ void Station::controlStep(uint32_t now) {
   } else if (_boost) {
     _mode = MODE_BOOST;
     int16_t bt = (int16_t)_setTemp + TEMP_BOOST_ADD_C;
-    if (bt > Cfg.tempMax)
-      bt = Cfg.tempMax;
+    if ((float)bt > _tempMaxEff)
+      bt = (int16_t)_tempMaxEff;
     target = bt;
   } else if (Cfg.standbyTimeMin > 0 &&
              idle > (uint32_t)Cfg.standbyTimeMin * 60000UL) {
@@ -473,7 +561,7 @@ void Station::controlStep(uint32_t now) {
   }
 
   // --- 超温保护(最高优先级) ---
-  if (_tipPresent && _tipTemp > TEMP_FAULT_C) {
+  if (_tipPresent && _tipTempAvg > TEMP_FAULT_C) {
     _fault = FAULT_OVERTEMP;
     _mode = MODE_FAULT;
     target = -1;
@@ -486,9 +574,9 @@ void Station::controlStep(uint32_t now) {
   if (_duty > SENSOR_NO_RISE_DUTY) {
     if (_heatSinceMs == 0) {
       _heatSinceMs = now;
-      _heatStartTemp = _tipTemp;
+      _heatStartTemp = _tipTempAvg;
     } else if (now - _heatSinceMs > SENSOR_NO_RISE_MS &&
-               _tipTemp - _heatStartTemp < SENSOR_NO_RISE_C) {
+               _tipTempAvg - _heatStartTemp < SENSOR_NO_RISE_C) {
       _fault = FAULT_TIPSENSOR;
       _mode = MODE_FAULT;
       target = -1;
@@ -496,6 +584,19 @@ void Station::controlStep(uint32_t now) {
   } else {
     _heatSinceMs = 0; // 占空比回落即重新计时, 保温期断续加热不会误判
   }
+
+  // --- 绝对超温强关(对应原厂 0x21FDE: >470°C 跳过 PID, 直接输出 0) ---
+  // 位于 PID 之前, 保证任何目标温度/BOOST/参数异常都无法把烙铁头烧到 470°C 以上
+  if (_tipTempAvg > TEMP_HARD_OFF_C) {
+    _hardOff = true;
+    setHeater(0);
+    _integral = 0.0f;
+    _prevErr = 0.0f;
+    _prevTipTemp = _tipTemp;
+    _heatSinceMs = 0;
+    return;
+  }
+  _hardOff = false;
 
   // --- PID ---
   if (target < 0) {
@@ -588,4 +689,9 @@ void Station::task() {
     _lastControlMs = now;
     controlStep(now);
   }
+
+#ifdef PIN_ALARM
+  // 报警输出: 故障期间保持高电平(对应原厂 0x19EC 的报警脚驱动)
+  digitalWrite(PIN_ALARM, (_fault != FAULT_NONE) ? HIGH : LOW);
+#endif
 }

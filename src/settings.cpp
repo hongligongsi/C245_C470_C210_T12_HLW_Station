@@ -59,6 +59,21 @@ static void fillDefaults() {
   Cfg.pidIntegralMax = 120.0f;
   Cfg.powerLimitPct = 70;
 
+  // 手柄参数表(对应原厂"按手柄型号装载 PID 与限值"的类型表):
+  //   PID 三型默认相同(沿用 25/0.3/15 的实测参数), 换芯后仍可各自微调
+  //   功率上限: C210 发热芯细 -> 60%(0 表示跟随全局)
+  //   温度上限: C210 细芯长期高温易烧断 -> 400°C(0 表示跟随全局)
+  Cfg.pidFollowTip = 1;
+  for (uint8_t i = 0; i < TIP_TYPE_COUNT; i++) {
+    Cfg.tipPowerPct[i] = 0;
+    Cfg.tipTempMax[i] = 0;
+    Cfg.tipPid[i][0] = 25.0f;
+    Cfg.tipPid[i][1] = 0.3f;
+    Cfg.tipPid[i][2] = 15.0f;
+  }
+  Cfg.tipPowerPct[TIP_C210_IDX] = 60;
+  Cfg.tipTempMax[TIP_C210_IDX] = 400;
+
   // 主题
   Cfg.style = STYLE_STANDARD; // 默认简洁版, 菜单可切换信息版
   Cfg.theme = THEME_DARK;
@@ -121,6 +136,21 @@ bool Settings_Load() {
   if (Cfg.tempMin >= Cfg.tempMax) {
     Cfg.tempMin = TEMP_MIN_C;
     Cfg.tempMax = TEMP_MAX_C;
+  }
+
+  // 手柄参数表越界保护
+  if (Cfg.pidFollowTip > 1)
+    Cfg.pidFollowTip = 1;
+  for (uint8_t i = 0; i < TIP_TYPE_COUNT; i++) {
+    if (Cfg.tipPowerPct[i] > 100)
+      Cfg.tipPowerPct[i] = 0;
+    if (Cfg.tipTempMax[i] < 0 || Cfg.tipTempMax[i] > TEMP_ABS_MAX_C)
+      Cfg.tipTempMax[i] = 0;
+    for (uint8_t k = 0; k < 3; k++) {
+      float v = Cfg.tipPid[i][k];
+      if (!(v >= 0.0f && v <= 200.0f)) // 同时拦截 NaN
+        Cfg.tipPid[i][k] = (k == 0) ? 25.0f : ((k == 1) ? 0.3f : 15.0f);
+    }
   }
   return true;
 }

@@ -84,7 +84,10 @@
 // 保护阈值
 #define VBUS_UV_FAULT 17.0f  // 欠压 V
 #define VBUS_OV_FAULT 50.5f  // 过压 V (48V 电源上限留余量)
-#define TEMP_FAULT_C 480.0f  // 超温保护
+#define TEMP_FAULT_C 480.0f  // 超温保护(锁定, 需手动清除)
+#define TEMP_HARD_OFF_C                                                        \
+  470.0f // 绝对超温强关: 对应原厂 0x21FDE, >470°C 跳过 PID 直接输出 0
+#define TEMP_ABS_MAX_C 550   // 设定值/校准允许的绝对上限(菜单与 Flash 校验)
 #define CURRENT_FAULT_A 6.0f // 过流保护
 
 // 供电电压-手柄匹配窗口 (高压版 24V/48V 双压):
@@ -163,6 +166,11 @@
 #ifndef PIN_VIBRATION
 // #define PIN_VIBRATION PAx
 #endif
+
+// 故障报警输出(对应原厂 0x19EC：过温时把 PA.10 拉高驱动报警指示):
+// 本 V1.7 板未引出该网络, 需要时在 platformio.ini 加 -DPIN_ALARM=PAx,
+// 故障/过温期间输出高电平(可直接驱动 LED 或外部继电器)。
+// #define PIN_ALARM PA10
 
 // ---------------------------------------------------------------------------
 // GET_ID(PA5) 手柄型号识别 (GX16-5 端子3=ID, 板内上拉至 3.3V, ADC 12bit):

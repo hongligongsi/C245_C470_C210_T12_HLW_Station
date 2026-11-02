@@ -70,6 +70,57 @@ static const MenuItem s_pid[] = {
      nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
 };
 
+// ---------------------------------------------------------------------------
+// 手柄参数 (工具设置下级): 按型号一套 PID + 功率上限 + 温度上限
+//   对应逆向报告里原厂的"手柄类型参数表"(识别型号后由 0x1F68C 装载):
+//   换 C210/C245/T12 时各自的参数自动生效, 不需要手动改菜单。
+//   功率/温度上限填 0 表示跟随全局设置。
+// ---------------------------------------------------------------------------
+#define TIP_PID_ROW(i, k, lab, lo, hi, st)                                     \
+  {lab, NT_FLOAT, &Cfg.tipPid[i][k], 4, 0, 0, 0, lo, hi, st, nullptr, 0,       \
+   nullptr, nullptr, nullptr, nullptr, 0}
+#define TIP_INT_ROW(ptr, lab, sz, lo, hi, st, sfx)                             \
+  {lab, NT_INT, ptr, sz, lo, hi, st, 0.0f, 0.0f, 0.0f, nullptr, 0, sfx,        \
+   nullptr, nullptr, nullptr, 0}
+
+static const MenuItem s_tip_t12[] = {
+    TIP_PID_ROW(TIP_T12_IDX, 0, "比例项", 1.0f, 100.0f, 0.5f),
+    TIP_PID_ROW(TIP_T12_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
+    TIP_PID_ROW(TIP_T12_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
+    TIP_INT_ROW(&Cfg.tipPowerPct[TIP_T12_IDX], "功率上限", 1, 0, 100, 5, "%"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_T12_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
+                5, "C"),
+};
+
+static const MenuItem s_tip_c210[] = {
+    TIP_PID_ROW(TIP_C210_IDX, 0, "比例项", 1.0f, 100.0f, 0.5f),
+    TIP_PID_ROW(TIP_C210_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
+    TIP_PID_ROW(TIP_C210_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
+    TIP_INT_ROW(&Cfg.tipPowerPct[TIP_C210_IDX], "功率上限", 1, 0, 100, 5, "%"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C210_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
+                5, "C"),
+};
+
+static const MenuItem s_tip_c245[] = {
+    TIP_PID_ROW(TIP_C245_IDX, 0, "比例项", 1.0f, 100.0f, 0.5f),
+    TIP_PID_ROW(TIP_C245_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
+    TIP_PID_ROW(TIP_C245_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
+    TIP_INT_ROW(&Cfg.tipPowerPct[TIP_C245_IDX], "功率上限", 1, 0, 100, 5, "%"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C245_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
+                5, "C"),
+};
+
+static const MenuItem s_tips[] = {
+    {"PID 跟随", NT_BOOL, &Cfg.pidFollowTip, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, nullptr, nullptr, nullptr, nullptr, 0},
+    {"T12", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tip_t12, 5},
+    {"C210", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tip_c210, 5},
+    {"C245", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tip_c245, 5},
+};
+
 // 2.工具设置
 static const MenuItem s_tools[] = {
     {"待机温度", NT_INT, &Cfg.standbyTemp, 2, 50, 300, 5, 0.0f, 0.0f, 0.0f,
@@ -89,6 +140,8 @@ static const MenuItem s_tools[] = {
      nullptr, actBoost, stateBoost, nullptr, 0},
     {"参数调整", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_pid, 5},
+    {"手柄参数", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tips, 4},
     // 滚珠开关: 待机时间=0 时此项无意义; 需硬件引接 PIN_VIBRATION
     {"滚珠开关", NT_BOOL, &Cfg.vibEnable, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr,
      0, nullptr, nullptr, nullptr, nullptr, 0},
@@ -125,7 +178,7 @@ static const MenuItem s_root[] = {
     {"基本设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_basic, 5},
     {"工具设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_tools, 9},
+     nullptr, nullptr, nullptr, s_tools, 10},
     {"主题风格", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_theme, 2},
     {"温度校准", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
@@ -282,6 +335,12 @@ void Menu::commitEdit() {
     }
     writeInt(_editItem, _editI);
   }
+  // 直接改「参数调整」里的全局 P/I/D 时自动关闭「PID 跟随」:
+  // 否则该型号仍使用手柄参数表里的值, 用户会觉得"改了没反应"
+  if (Cfg.pidFollowTip && (_editItem->ptr == &Cfg.pidP ||
+                           _editItem->ptr == &Cfg.pidI ||
+                           _editItem->ptr == &Cfg.pidD))
+    Cfg.pidFollowTip = 0;
   Settings_Save();
   Stn.syncConfig();
 }
@@ -322,6 +381,7 @@ void Menu::select() {
     uint8_t *p = (uint8_t *)it->ptr;
     *p = !*p;
     Settings_Save();
+    Stn.syncConfig(); // 开关项(如 PID 跟随)立即生效
   } break;
   case NT_INT:
   case NT_FLOAT:

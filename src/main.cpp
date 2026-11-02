@@ -42,6 +42,34 @@ static void beep(uint16_t ms) {
     Buzz.beep(ms);
 }
 
+// 故障报警节奏(对应原厂 TIMERA6 故障报警定时器 0x220D2: 故障期间持续报警):
+// 超温/传感器故障三连短鸣, 其余双短鸣, 每 2s 一轮; 故障消失立即静音。
+static uint32_t s_alarmNextMs = 0;
+static uint8_t s_alarmBeeps = 0;
+
+static void alarmTick(uint32_t now) {
+  FaultCode f = Stn.fault();
+  if (f == FAULT_NONE) {
+    s_alarmBeeps = 0;
+    s_alarmNextMs = 0;
+    return;
+  }
+  if (s_alarmNextMs == 0) { // 故障刚出现: 让位于入口长鸣, 1.5s 后开始节奏
+    s_alarmNextMs = now + 1500;
+    return;
+  }
+  if ((int32_t)(now - s_alarmNextMs) < 0)
+    return;
+  uint8_t total = (f == FAULT_OVERTEMP || f == FAULT_TIPSENSOR) ? 3 : 2;
+  beep((f == FAULT_OVERTEMP) ? 120 : 60);
+  if (++s_alarmBeeps >= total) {
+    s_alarmBeeps = 0;
+    s_alarmNextMs = now + 2000;
+  } else {
+    s_alarmNextMs = now + 220;
+  }
+}
+
 void setup() {
   // 先加载设置, Station/UI 初始化时读取 Cfg
   Settings_Load();
@@ -145,5 +173,6 @@ void loop() {
 
   // ---- 业务与界面 ----
   Stn.task();
+  alarmTick(now);
   Screen.update();
 }

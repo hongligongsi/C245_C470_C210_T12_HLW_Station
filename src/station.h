@@ -56,7 +56,8 @@ public:
   // 状态(供 UI)
   WorkMode mode() const { return _mode; }
   FaultCode fault() const { return _fault; }
-  float tipTemp() const { return _tipTemp; }
+  float tipTemp() const { return _tipTempAvg; }   // 10 点窗口平滑值(显示/保护)
+  float tipTempFast() const { return _tipTemp; }  // 快速滤波值(控制环内部使用)
   float ambient() const { return _ambient; }
   int16_t setTemp() const { return _setTemp; }
   uint8_t duty() const { return _duty; }
@@ -73,6 +74,8 @@ public:
   bool tipSwitchOpen() const { return _tipSwitchOpen; }
   bool idHigh() const { return _idHigh; }
   bool hvMode() const { return _hvMode; } // true=C470 状态(48V)
+  bool hardOff() const { return _hardOff; }       // 470°C 绝对强关中
+  float tempMaxEff() const { return _tempMaxEff; } // 当前手柄允许的最高设定温度
 
 private:
   // 采样与控制
@@ -81,6 +84,12 @@ private:
   void logicStep(uint32_t now);
   void setHeater(uint8_t d);
   void checkVoltProfile(uint32_t now);
+
+  // 按识别出的手柄型号装载 PID / 功率上限 / 温度上限
+  // (对应原厂 0x1F68C 参数装载链 + 类型参数表)
+  void applyTipProfile();
+  // ADC 原始值 → 温度: 运放电压 → 热电偶电动势 → K 型分度表 + 冷端补偿
+  float rawToTemp(float raw) const;
 
   // 调温参数(离散PID, 50ms): 由 Cfg 注入, 运行时可调
   float _pidP = 25.0f;
@@ -91,11 +100,20 @@ private:
   uint8_t _powerLimitPct = 70; // 功率上限 %
 
   int16_t _setTemp = TEMP_DEFAULT_C;
-  float _tipTemp = 25.0f;
+  float _tipTemp = 25.0f;    // 快速滤波值(控制环)
+  float _tipTempAvg = 25.0f; // 10 点窗口平滑值(显示/超温判定)
   float _ambient = 25.0f;
   float _vbus = 0.0f;
   float _current = 0.0f;
   uint16_t _tipRaw = 0;
+  // 10 点滑动窗口: 对应原厂 0x65E8 环形写入 + 0xAAE0 求和÷10
+  // (原厂按 5ms 节拍写入, 本工程同节拍, 窗口 ≈ 50ms)
+  uint16_t _win[10] = {0};
+  uint8_t _winIdx = 0;
+  uint8_t _winCount = 0;
+  uint32_t _winSum = 0;
+  float _tempMaxEff = TEMP_MAX_C; // 全局上限与手柄上限取小
+  bool _hardOff = false;          // 470°C 绝对强关标志
   uint16_t _idRaw = 0;
   float _zeroRaw = 0.0f;
   bool _idHigh = true;

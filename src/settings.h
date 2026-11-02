@@ -7,7 +7,15 @@
 #include <Arduino.h>
 
 #define SETTINGS_MAGIC 0x5A4Cu
-#define SETTINGS_VERSION 2u // v2: 新增 tempCal(350° 单点增益)
+// v3: 新增按手柄类型的参数表(pidFollowTip / tipPid / tipPowerPct / tipTempMax)
+#define SETTINGS_VERSION 3u
+
+// 手柄型号数量(TIP_T12 / TIP_C210 / TIP_C245)
+#define TIP_TYPE_COUNT 3
+// 与 station.h 的 TipType 枚举顺序一致(station.cpp 内有编译期断言)
+#define TIP_T12_IDX 0
+#define TIP_C210_IDX 1
+#define TIP_C245_IDX 2
 
 // 系统风格
 #define STYLE_STANDARD 0
@@ -42,6 +50,12 @@ struct Settings_t {
   float pidIntegralMax;   // 积分限幅
   uint8_t powerLimitPct;  // 功率上限 %
   uint8_t _pad2[3];
+
+  // --- 手柄参数(按 GET_ID 识别结果自动装载, 对应原厂 0x1F68C 参数装载链) ---
+  uint8_t pidFollowTip;              // 1=按手柄型号装载 tipPid, 0=统一用 pidP/I/D
+  uint8_t tipPowerPct[TIP_TYPE_COUNT]; // 每型功率上限 %, 0=跟随全局 powerLimitPct
+  int16_t tipTempMax[TIP_TYPE_COUNT];  // 每型温度上限 °C, 0=跟随全局 tempMax
+  float tipPid[TIP_TYPE_COUNT][3];     // 每型 Kp / Ki / Kd
 
   // --- 主题风格 ---
   uint8_t style; // 0=标准 1=曲线
