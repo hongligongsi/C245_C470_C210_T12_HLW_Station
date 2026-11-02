@@ -494,22 +494,25 @@ void Ui::drawFault() {
     break;
   }
 
-  uint8_t fs = (LCD_W >= 120) ? 4 : 3;
-  int16_t fy2 = (LCD_W >= 120) ? 76 : 56;
-  Lcd.drawText((LCD_W - Lcd.textWidth("!", fs)) / 2, 24, "!", Pal.danger,
-               Pal.bg, fs);
-
-  // 故障标题: 红底白字
-  const int16_t bw = 64, bh = 20;
-  int16_t bx = (LCD_W - bw) / 2;
-  Lcd.fillRect(bx, fy2, bw, bh, Pal.danger);
-  Lcd.drawText((LCD_W - Lcd.textWidth("故障", 1)) / 2, fy2 + 6, "故障", Pal.bg,
-               Pal.danger, 1);
-
-  Lcd.drawText((LCD_W - Lcd.textWidth(reason, 1)) / 2, fy2 + bh + 14, reason,
-               Pal.accent, Pal.bg, 1);
-  Lcd.drawText((LCD_W - Lcd.textWidth("轻按复位", 1)) / 2, LCD_H - 22, "轻按复位",
-               Pal.grid, Pal.bg, 1);
+#if LCD_W >= 200
+  // 对齐原厂故障页: 无"!"与色块, 居中两行白字(故障原因 + 重启恢复)
+  const uint8_t cs = 3, as = 4;   // 汉字 3 倍(36px), ASCII 4 倍(28px)
+  const uint8_t lineH = 12 * cs; // 汉字原始 12px
+  const uint8_t gap = 16;
+  int16_t y1 = (LCD_H - (lineH * 2 + gap)) / 2;
+  int16_t w1 = Lcd.textWidth(reason, as, cs);
+  Lcd.drawText((LCD_W - w1) / 2, y1, reason, Pal.fg, Pal.bg, as, cs);
+  int16_t w2 = Lcd.textWidth("重启恢复", as, cs);
+  Lcd.drawText((LCD_W - w2) / 2, y1 + lineH + gap, "重启恢复", Pal.fg, Pal.bg,
+               as, cs);
+#else
+  // 小屏: 12px 汉字不放大
+  const int16_t fy2 = 56;
+  Lcd.drawText((LCD_W - Lcd.textWidth(reason, 1)) / 2, fy2, reason, Pal.fg,
+               Pal.bg, 1);
+  Lcd.drawText((LCD_W - Lcd.textWidth("重启恢复", 1)) / 2, fy2 + 24, "重启恢复",
+               Pal.fg, Pal.bg, 1);
+#endif
 }
 
 // ---------------------------------------------------------------------------

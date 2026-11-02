@@ -322,9 +322,9 @@ static bool utf8Decode(const char *&p, uint32_t &cp) {
   return true;
 }
 
-// 12x12 汉字: 逐行按连续段填充, 未收录的字符留空
+// 12x12 汉字: 逐行按连续段填充, 未收录的字符留空; cs 为整数放大倍数
 void Tft::drawCnChar(int16_t x, int16_t y, uint32_t cp, uint16_t fg,
-                     uint16_t bg) {
+                     uint16_t bg, uint8_t cs) {
   const CnGlyph *g = fontCn(cp);
   if (!g)
     return;
@@ -338,16 +338,25 @@ void Tft::drawCnChar(int16_t x, int16_t y, uint32_t cp, uint16_t fg,
              (((bits >> (15 - c - n)) & 1u) == (on ? 1u : 0u)))
         n++;
       if (on || bg != COL_TRANS)
-        fillRect(x + c, y + r, (int16_t)n, 1, on ? fg : bg);
+        fillRect(x + c * cs, y + r * cs, (int16_t)n * cs, cs, on ? fg : bg);
       c += n;
     }
   }
-  if (bg != COL_TRANS) // 字间 1px 间隔
-    fillRect(x + CN_W, y, 1, CN_H, bg);
+  if (bg != COL_TRANS) // 字间 1px 间隔(放大后同步为 cs 像素)
+    fillRect(x + CN_W * cs, y, cs, CN_H * cs, bg);
 }
 
 void Tft::drawText(int16_t x, int16_t y, const char *s, uint16_t fg,
-                   uint16_t bg, uint8_t scale) {
+                   uint16_t bg, uint8_t scale, uint8_t cnScale) {
+  int16_t lineH = (int16_t)(FONT_H * scale);
+  int16_t cjkH = (int16_t)(CN_H * cnScale);
+  // 默认(cnScale=1): 汉字固定 12px, 相对 ASCII 行高居中(保持旧布局不变)
+  int16_t ay = y;
+  int16_t cy = y + (lineH - cjkH) / 2;
+  if (cnScale > 1 && cjkH > lineH) { // 放大汉字时以汉字行高为准, ASCII 居中
+    ay = y + (cjkH - lineH) / 2;
+    cy = y;
+  }
   int16_t cx = x;
   uint32_t cp;
   while (utf8Decode(s, cp)) {
@@ -355,25 +364,23 @@ void Tft::drawText(int16_t x, int16_t y, const char *s, uint16_t fg,
       char ch = (char)cp;
       if (ch >= 'a' && ch <= 'z')
         ch -= 32;
-      drawChar(cx, y, ch, fg, bg, scale);
+      drawChar(cx, ay, ch, fg, bg, scale);
       cx += (FONT_W + 1) * scale;
     } else {
-      // 汉字固定 12px: 相对 7*scale 高 ASCII 垂直居中
-      int16_t cy = y + (int16_t)((FONT_H * scale - CN_H) / 2);
-      drawCnChar(cx, cy, cp, fg, bg);
-      cx += CN_ADV;
+      drawCnChar(cx, cy, cp, fg, bg, cnScale);
+      cx += CN_ADV * cnScale;
     }
   }
 }
 
-int16_t Tft::textWidth(const char *s, uint8_t scale) {
+int16_t Tft::textWidth(const char *s, uint8_t scale, uint8_t cnScale) {
   int16_t w = 0;
   uint32_t cp;
   while (utf8Decode(s, cp)) {
     if (cp < 0x80)
       w += (FONT_W + 1) * scale;
     else
-      w += CN_ADV;
+      w += CN_ADV * cnScale;
   }
   return w;
 }

@@ -67,10 +67,11 @@ public:
   /// 5x7 字符, scale 整数倍放大
   void drawChar(int16_t x, int16_t y, char ch, uint16_t fg, uint16_t bg,
                 uint8_t scale = 1);
-  /// 字符串(自动大写), 支持 UTF-8 汉字(12x12, 不随 scale 放大)
+  /// 字符串(自动大写), 支持 UTF-8 汉字(12x12, 默认不随 scale 放大;
+  /// cnScale>1 时汉字按整数倍放大, 用于故障页大字)
   void drawText(int16_t x, int16_t y, const char *s, uint16_t fg, uint16_t bg,
-                uint8_t scale = 1);
-  int16_t textWidth(const char *s, uint8_t scale = 1);
+                uint8_t scale = 1, uint8_t cnScale = 1);
+  int16_t textWidth(const char *s, uint8_t scale = 1, uint8_t cnScale = 1);
 
   /// 将脏区域刷到屏幕(全帧缓冲)
   void present();
@@ -80,7 +81,8 @@ public:
   uint16_t *fb() { return _fb; }
 
 private:
-  void drawCnChar(int16_t x, int16_t y, uint32_t cp, uint16_t fg, uint16_t bg);
+  void drawCnChar(int16_t x, int16_t y, uint32_t cp, uint16_t fg, uint16_t bg,
+                  uint8_t cs = 1);
   void hwReset();
   void writeCmd(uint8_t c);
   void writeData(uint8_t d);
