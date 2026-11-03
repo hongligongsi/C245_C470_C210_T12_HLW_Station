@@ -7,6 +7,8 @@
 build/
 sdkconfig*
 *.bin
+# 发行包固件必须入库: 否则打 tag/发 Release 时 firmware/ 里没有可烧录文件
+!firmware/*.bin
 *.elf
 *.hex
 *.map
