@@ -642,7 +642,7 @@ C245_C470_C210_T12_HLW_Station/
 ├── boards/
 │   └── hc32f460jeta.json   # 自定义板级定义（启用 OTS/EFM 驱动）
 ├── docs/
-│   └── UI预览.html         # 320×240 双屏 UI 预览页（浏览器打开）
+│   └── UI预览.html         # 320×240 UI 一比一复刻页（可交互，浏览器打开）
 ├── firmware/               # 发行包：三个可烧录 .bin + 固件说明.txt
 ├── bin/                    # 最近一次本地编译产物（构建后刷新）
 └── src/
@@ -672,11 +672,12 @@ C245_C470_C210_T12_HLW_Station/
 | `menu.cpp` | 树状菜单的浏览、编辑、重置逻辑 |
 | `calib.cpp` | 全屏校准页（VBUS K / CJC / T CAL） |
 | `about.cpp` | 全屏「关于本机」信息页（版本、手柄、电压、运行时长） |
-| `ui.cpp` | 主页三种布局、故障页、深色/浅色主题 |
+| `ui.cpp` | 两套主页布局（标准 / 曲线）、顶栏状态提示、故障页、深色/浅色主题 |
 | `tft.cpp` | 屏幕驱动与帧缓冲绘制 |
 | `encoder.cpp` | EC11 旋转编码器扫描（旋转、短按、长按、连发） |
 | `buzzer.cpp` | 无源蜂鸣器发声 |
-| `font5x7.h` | ASCII 点阵字库（菜单英文标签） |
+| `font5x7.h` | 5×7 ASCII 点阵（数字、单位、英文短标签） |
+| `font_cn.h` | 12×12 中文点阵（界面用字 146 个，缺字可按需扩充） |
 
 ## 开发
 
@@ -688,7 +689,7 @@ C245_C470_C210_T12_HLW_Station/
 
 ### 资源占用
 
-320×240 横屏构建：Flash ≈ 51.5KB（10.1%），RAM ≈ 164KB（85.4%，主要为显示帧缓冲）。
+320×240 横屏构建：Flash ≈ 48.8KB（9.5%），RAM ≈ 164KB（85.4%，主要为显示帧缓冲）。
 小屏（80×160）构建：Flash 与横屏接近（≈51KB），RAM ≈ 39KB（20%）。
 
 > 想加功能时注意 RAM：大屏构建的帧缓冲已占掉大部分内存，扩功能前先评估余量，或改用小屏 / 分块刷新。
@@ -701,7 +702,7 @@ C245_C470_C210_T12_HLW_Station/
 
 | 文档 | 内容 |
 |---|---|
-| [Wiki 首页](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki) | 项目总览与导航 |
+| [UI 预览（复刻版）](docs/UI预览.html) | 320×240 界面一比一复刻：两套主页、菜单、校准页、故障页，可交互 |
 | [快速开始](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Quick-Start) | 环境、编译、烧录 |
 | [硬件与接线](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Hardware) | 引脚表、手柄接线、双压校验 |
 | [屏幕与显示配置](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Display) | 选型表与显示异常处理 |
