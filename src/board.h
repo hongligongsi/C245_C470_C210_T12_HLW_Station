@@ -94,7 +94,7 @@
 #define TEMP_FAULT_C 480.0f  // 超温保护(锁定, 需手动清除)
 #define TEMP_HARD_OFF_C                                                        \
   470.0f // 绝对超温强关: 对应原厂 0x21FDE, >470°C 跳过 PID 直接输出 0
-#define TEMP_ABS_MAX_C 550   // 设定值/校准允许的绝对上限(菜单与 Flash 校验)
+#define TEMP_ABS_MAX_C 450   // 设定值/校准允许的绝对上限(菜单与 Flash 校验)
 #define CURRENT_FAULT_A 6.0f // 过流保护
 
 // 供电电压-手柄匹配窗口 (高压版 24V/48V 双压):
@@ -146,6 +146,17 @@
 #define TEMP_MIN_C 100
 #define TEMP_MAX_C 450
 #define TEMP_DEFAULT_C 350
+
+// 原厂 PWM 映射(CMPAR = pid×90 + 100, 周期 450)在 pid=0 时约占空比 22%,
+// 即加热一旦开启就不低于最低功率。本工程输出为 0~100%:
+//   0 表示真关断(到达设定/软刹车/故障), >0 时线性映射到 22%~100%
+#ifndef PWM_MIN_ON_PCT
+#define PWM_MIN_ON_PCT 22.0f
+#endif
+// 原厂 PID 反向关断: 误差 < -20°C(超出设定 20°C)时输出直接置 0 并清积分
+#ifndef PID_REVERSE_CUTOFF_C
+#define PID_REVERSE_CUTOFF_C 20.0f
+#endif
 #define TEMP_BOOST_ADD_C 48 // 一键升温增量
 
 #define HOLD_SLEEP_MS 2000 // 支架信号持续 -> 休眠

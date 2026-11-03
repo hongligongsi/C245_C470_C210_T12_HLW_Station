@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    编译并烧录 T12 / HLW 焊台固件（pyOCD + CMSIS-DAP）。
+    编译并烧录 T12 / HLW 焊台固件（pyOCD + CMSIS-DAP，兼容创芯工坊 PWLINK2）。
 
 .PARAMETER Button
     烧录三键版固件；不加此参数则烧录 EC11 编码器版。
@@ -11,16 +11,22 @@
 .PARAMETER Build
     烧录前强制重新编译（默认只在 bin 不存在时编译）。
 
+.PARAMETER Halt
+    用 connect_mode=halt 连接（不依赖调试器的复位脚）。
+    创芯工坊 PWLINK2 等 CMSIS-DAP 探针若 under-reset 连接失败时使用。
+
 .EXAMPLE
     .\flash.ps1
     .\flash.ps1 -Button
     .\flash.ps1 -Auto
     .\flash.ps1 -Button -Build
+    .\flash.ps1 -Halt
 #>
 param(
     [switch]$Button,
     [switch]$Auto,
-    [switch]$Build
+    [switch]$Build,
+    [switch]$Halt
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,8 +58,11 @@ try {
 
     $bin = Get-Item $binPath
     Write-Host ("[2/2] 烧录 {0}（{1} 字节）" -f $bin.Name, $bin.Length) -ForegroundColor Cyan
-    pyocd load --target hc32f460xe -O connect_mode=under-reset $bin.FullName
-    if ($LASTEXITCODE -ne 0) { throw '烧录失败：请检查 CMSIS-DAP 连接、SWD 接线与主板供电' }
+    $connectMode = if ($Halt) { 'halt' } else { 'under-reset' }
+    pyocd load --target hc32f460xe -O connect_mode=$connectMode $bin.FullName
+    if ($LASTEXITCODE -ne 0) {
+        throw "烧录失败（connect_mode=$connectMode）：请检查 CMSIS-DAP/PWLINK2 连接、SWDIO/SWCLK/GND 接线与主板供电；若探针没有接复位脚，加 -Halt 重试"
+    }
 
     Write-Host '烧录完成，请断电重新上电确认屏幕点亮。' -ForegroundColor Green
 }

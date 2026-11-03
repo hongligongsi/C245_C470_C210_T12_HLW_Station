@@ -621,10 +621,11 @@ void Station::controlStep(uint32_t now) {
     float pd = _pidP * err + _pidD * d;
     // 条件积分抗饱和(clamping): 试算后若积分会把输出继续推向饱和, 本轮不累加
     float iNew = _integral + _pidI * err;
+    // 原厂积分单向限幅 0~1000(积分器不允许反向累积), 超温时由反向关断清积分
     if (iNew > _pidIlimit)
       iNew = _pidIlimit;
-    if (iNew < -_pidIlimit)
-      iNew = -_pidIlimit;
+    if (iNew < 0.0f)
+      iNew = 0.0f;
     float cand = pd + iNew;
     bool saturating =
         (cand >= 100.0f && err > 0.0f) || (cand <= 0.0f && err < 0.0f);
@@ -639,8 +640,8 @@ void Station::controlStep(uint32_t now) {
   _prevErr = err;
   _prevTipTemp = _tipTemp;
 
-  // 软刹车: 过冲>5C 强制关断并清积分(早于 480C 硬保护)
-  if (err < -5.0f) {
+  // 原厂反向关断: 超调>20C 强制关断并清积分(早于 480C 硬保护)
+  if (err < -PID_REVERSE_CUTOFF_C) {
     out = 0.0f;
     _integral = 0.0f;
   }
@@ -666,6 +667,10 @@ void Station::controlStep(uint32_t now) {
   }
 
   uint8_t pwm;
+  // 原厂 PWM 底部偏置: 有加热需求时把 0~100% 映射到 22%~100%;
+  // 功率上限低于 22% 时不启用, 以免破坏用户设定的输出限制
+  if (out > 0.0f && _powerLimitPct >= (uint8_t)PWM_MIN_ON_PCT)
+    out = PWM_MIN_ON_PCT + out * (100.0f - PWM_MIN_ON_PCT) / 100.0f;
   // 手柄型号功率上限: C210 发热芯细, 钳位 60% 防烧毁(参考固件同款保护);
   // 位于前馈放大之后最终截断, 覆盖积分分离全速段与 BOOST 在内的所有加热输出
   if (_tipType == TIP_C210 && out > C210_POWER_LIMIT_PCT)

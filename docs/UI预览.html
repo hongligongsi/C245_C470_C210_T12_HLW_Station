@@ -224,7 +224,7 @@ function pal() {
 const now = () => performance.now();
 const HIST_N = 64;
 const S = {
-  style: 0, theme: 0, sound: true, brightness: 100,
+  style: 0, theme: 0, sound: true, brightness: 10,
   tip: 'C245', present: true,
   tempMin: 50, tempMax: 450, tempStep: 5,
   standbyTemp: 100, standbyMin: 0, sleepMin: 10,
@@ -514,9 +514,9 @@ const boolItem = (label, key) =>
 
 const s_basic = [
   boolItem('系统声音', 'sound'),
-  num('系统亮度', 'brightness', 1, 100, 1, '%'),
+  num('系统亮度', 'brightness', 1, 10, 1, null),
   num('最低温度', 'tempMin', 50, 400, 5, 'C'),
-  num('最高温度', 'tempMax', 200, 500, 5, 'C'),
+  num('最高温度', 'tempMax', 200, 450, 5, 'C'),
   num('温度步进', 'tempStep', 1, 50, 1, 'C'),
 ];
 
@@ -541,7 +541,7 @@ const tipSub = (name) => [
   tipItem(name, NT.FLOAT, 1, '积分项', 0, 5, 0.1),
   tipItem(name, NT.FLOAT, 2, '微分项', 0, 100, 0.5),
   item('功率上限', NT.INT, { get: () => S.tipPower[name], set: v => { S.tipPower[name] = v; }, min: 0, max: 100, step: 5, suffix: '%' }),
-  item('温度上限', NT.INT, { get: () => S.tipTempMax[name], set: v => { S.tipTempMax[name] = v; }, min: 0, max: 500, step: 5, suffix: 'C' }),
+  item('温度上限', NT.INT, { get: () => S.tipTempMax[name], set: v => { S.tipTempMax[name] = v; }, min: 0, max: 450, step: 5, suffix: 'C' }),
 ];
 const s_tips = [
   boolItem('PID 跟随', 'tipFollow'),
@@ -553,10 +553,10 @@ const s_tips = [
 const s_tools = [
   num('待机温度', 'standbyTemp', 50, 300, 5, 'C'),
   num('待机时间', 'standbyMin', 0, 30, 1, '分'),
-  num('休眠时间', 'sleepMin', 0, 120, 1, '分'),
-  item('快捷一', NT.INT, { get: () => S.quick[0], set: v => { S.quick[0] = v; }, min: 50, max: 500, step: 5, suffix: 'C' }),
-  item('快捷二', NT.INT, { get: () => S.quick[1], set: v => { S.quick[1] = v; }, min: 50, max: 500, step: 5, suffix: 'C' }),
-  item('快捷三', NT.INT, { get: () => S.quick[2], set: v => { S.quick[2] = v; }, min: 50, max: 500, step: 5, suffix: 'C' }),
+  num('休眠时间', 'sleepMin', 0, 255, 1, '分'),
+  item('快捷一', NT.INT, { get: () => S.quick[0], set: v => { S.quick[0] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+  item('快捷二', NT.INT, { get: () => S.quick[1], set: v => { S.quick[1] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+  item('快捷三', NT.INT, { get: () => S.quick[2], set: v => { S.quick[2] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
   item('升压', NT.ACTION, { stateFn: () => S.boost, action: () => { S.boost = !S.boost; } }),
   item('参数调整', NT.SUBMENU, { children: s_pid }),
   item('手柄参数', NT.SUBMENU, { children: s_tips }),
@@ -803,7 +803,7 @@ function drawAbout(P) {
   text(W - tw(hint, 1) - 4, 20 / 2 - 3, hint, P.bg, P.fg, 1);
 
   const rows = [
-    ['固件版本', 'v1.1.0'],
+    ['固件版本', 'v1.2.0'],
     ['编译时间', '模拟器'],
     ['主控', 'HC32F460JETA'],
     ['配置版本', 'v3'],
@@ -825,7 +825,14 @@ function drawAbout(P) {
 // ---------------------------------------------------------------------------
 // 交互
 // ---------------------------------------------------------------------------
+// 无工具时 UI 不响应任何操作(原厂手柄类型 0xFF 直接退出界面逻辑)
+function uiLocked() {
+  if (S.present) return false;
+  M.on = false; CAL.item = null; AB.on = false;
+  return true;
+}
 function rotate(d) {
+  if (uiLocked()) return;
   if (AB.on) return; // 信息页只读
   if (CAL.item) { calibMove(d); return; }
   if (M.on) { menuMove(d); return; }
@@ -840,6 +847,7 @@ function rotate(d) {
   S.promptMs = now(); S.promptTemp = v;
 }
 function shortPress() {
+  if (uiLocked()) return;
   if (AB.on) { AB.on = false; return; }
   if (CAL.item) { calibSave(); return; }
   if (M.on) { menuSelect(); return; }
@@ -851,6 +859,7 @@ function shortPress() {
   S.promptMs = now(); S.promptTemp = S.setTemp;
 }
 function longPress() {
+  if (uiLocked()) return;
   if (AB.on) { AB.on = false; return; }
   if (CAL.item) { CAL.item = null; return; }
   if (M.on) { menuBack(); return; }

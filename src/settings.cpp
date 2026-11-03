@@ -33,7 +33,7 @@ static void fillDefaults() {
 
   // 基本
   Cfg.soundOn = 1;
-  Cfg.brightness = 100;
+  Cfg.brightness = 10; // 亮度 1~10 档(每档 10%)
   Cfg.tempMin = TEMP_MIN_C;
   Cfg.tempMax = TEMP_MAX_C;
   Cfg.tempStep = 5;
@@ -117,7 +117,9 @@ bool Settings_Load() {
   }
   // 字段范围钳位, 防止 Flash 半损坏导致越界
   if (Cfg.brightness == 0)
-    Cfg.brightness = 100;
+    Cfg.brightness = 10;
+  else if (Cfg.brightness > 10) // 旧固件 1~100% 迁移为 10 档
+    Cfg.brightness = (uint8_t)((Cfg.brightness + 9) / 10);
   if (Cfg.tempStep == 0)
     Cfg.tempStep = 5;
   if (Cfg.powerLimitPct == 0)
@@ -133,9 +135,15 @@ bool Settings_Load() {
     Cfg.cjcOffset = CJC_OFFSET_C;
   if (Cfg.tempCal < 80.0f || Cfg.tempCal > 120.0f)
     Cfg.tempCal = 100.0f;
+  if (Cfg.tempMax > TEMP_MAX_C)
+    Cfg.tempMax = TEMP_MAX_C;
   if (Cfg.tempMin >= Cfg.tempMax) {
     Cfg.tempMin = TEMP_MIN_C;
     Cfg.tempMax = TEMP_MAX_C;
+  }
+  for (uint8_t k = 0; k < 3; k++) {
+    if (Cfg.quickTemp[k] > TEMP_MAX_C)
+      Cfg.quickTemp[k] = TEMP_MAX_C;
   }
 
   // 手柄参数表越界保护
@@ -144,7 +152,7 @@ bool Settings_Load() {
   for (uint8_t i = 0; i < TIP_TYPE_COUNT; i++) {
     if (Cfg.tipPowerPct[i] > 100)
       Cfg.tipPowerPct[i] = 0;
-    if (Cfg.tipTempMax[i] < 0 || Cfg.tipTempMax[i] > TEMP_ABS_MAX_C)
+    if (Cfg.tipTempMax[i] < 0 || Cfg.tipTempMax[i] > TEMP_MAX_C)
       Cfg.tipTempMax[i] = 0;
     for (uint8_t k = 0; k < 3; k++) {
       float v = Cfg.tipPid[i][k];

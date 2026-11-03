@@ -12,7 +12,8 @@ Encoder Enc;
 #endif
 
 #define BTN_DEBOUNCE_MS 20
-#define BTN_HOLD_MS 800
+// 原厂长按判定 750ms(超过即进菜单/唤醒)
+#define BTN_HOLD_MS 750
 #define BTN_REPEAT_MS 180
 
 #if defined(NO_INPUT)

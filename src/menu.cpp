@@ -46,11 +46,13 @@ static bool stateBoost() { return Stn.boostActive(); }
 static const MenuItem s_basic[] = {
     {"系统声音", NT_BOOL, &Cfg.soundOn, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, nullptr, 0},
-    {"系统亮度", NT_INT, &Cfg.brightness, 1, 1, 100, 1, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
+    // 亮度 1~10 档(原厂菜单 12: 值<10 递增), 运行时按档 ×10% 输出
+    {"系统亮度", NT_INT, &Cfg.brightness, 1, 1, 10, 1, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, nullptr, nullptr, nullptr, nullptr, 0},
     {"最低温度", NT_INT, &Cfg.tempMin, 2, 50, 400, 5, 0.0f, 0.0f, 0.0f, nullptr,
      0, "C", nullptr, nullptr, nullptr, 0},
-    {"最高温度", NT_INT, &Cfg.tempMax, 2, 200, 500, 5, 0.0f, 0.0f, 0.0f,
+    // 目标温度上限 450°C(原厂菜单 17: 0~450), 高于 470°C 会被绝对强关截断
+    {"最高温度", NT_INT, &Cfg.tempMax, 2, 200, TEMP_MAX_C, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
     {"温度步进", NT_INT, &Cfg.tempStep, 1, 1, 50, 1, 0.0f, 0.0f, 0.0f, nullptr, 0,
      "C", nullptr, nullptr, nullptr, 0},
@@ -88,8 +90,8 @@ static const MenuItem s_tip_t12[] = {
     TIP_PID_ROW(TIP_T12_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
     TIP_PID_ROW(TIP_T12_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
     TIP_INT_ROW(&Cfg.tipPowerPct[TIP_T12_IDX], "功率上限", 1, 0, 100, 5, "%"),
-    TIP_INT_ROW(&Cfg.tipTempMax[TIP_T12_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
-                5, "C"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_T12_IDX], "温度上限", 2, 0, TEMP_MAX_C, 5,
+                "C"),
 };
 
 static const MenuItem s_tip_c210[] = {
@@ -97,8 +99,8 @@ static const MenuItem s_tip_c210[] = {
     TIP_PID_ROW(TIP_C210_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
     TIP_PID_ROW(TIP_C210_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
     TIP_INT_ROW(&Cfg.tipPowerPct[TIP_C210_IDX], "功率上限", 1, 0, 100, 5, "%"),
-    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C210_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
-                5, "C"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C210_IDX], "温度上限", 2, 0, TEMP_MAX_C, 5,
+                "C"),
 };
 
 static const MenuItem s_tip_c245[] = {
@@ -106,8 +108,8 @@ static const MenuItem s_tip_c245[] = {
     TIP_PID_ROW(TIP_C245_IDX, 1, "积分项", 0.0f, 5.0f, 0.1f),
     TIP_PID_ROW(TIP_C245_IDX, 2, "微分项", 0.0f, 100.0f, 0.5f),
     TIP_INT_ROW(&Cfg.tipPowerPct[TIP_C245_IDX], "功率上限", 1, 0, 100, 5, "%"),
-    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C245_IDX], "温度上限", 2, 0, TEMP_ABS_MAX_C,
-                5, "C"),
+    TIP_INT_ROW(&Cfg.tipTempMax[TIP_C245_IDX], "温度上限", 2, 0, TEMP_MAX_C, 5,
+                "C"),
 };
 
 static const MenuItem s_tips[] = {
@@ -128,14 +130,15 @@ static const MenuItem s_tools[] = {
     // 待机时间/休眠时间 单位: 分钟(0=不启用)
     {"待机时间", NT_INT, &Cfg.standbyTimeMin, 1, 0, 30, 1, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
-    {"休眠时间", NT_INT, &Cfg.sleepTimeMin, 1, 0, 120, 1, 0.0f, 0.0f, 0.0f,
+    // 休眠时间上限受 uint8 存储字段限制为 255 分钟
+    {"休眠时间", NT_INT, &Cfg.sleepTimeMin, 1, 0, 255, 1, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
-    {"快捷一", NT_INT, &Cfg.quickTemp[0], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"快捷二", NT_INT, &Cfg.quickTemp[1], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"快捷三", NT_INT, &Cfg.quickTemp[2], 2, 50, 500, 5, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷一", NT_INT, &Cfg.quickTemp[0], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷二", NT_INT, &Cfg.quickTemp[1], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷三", NT_INT, &Cfg.quickTemp[2], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
     {"升压", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, actBoost, stateBoost, nullptr, 0},
     {"参数调整", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,

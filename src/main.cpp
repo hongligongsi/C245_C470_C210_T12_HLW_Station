@@ -96,15 +96,19 @@ void loop() {
     s_blinkCnt++;
     if (s_blinkCnt >= 100)
       s_blinkCnt = 0;
-    digitalWrite(PIN_TFT_LED, s_blinkCnt < Cfg.brightness ? HIGH : LOW);
+    // 亮度 1~10 档 → 10%~100% 占空比
+    digitalWrite(PIN_TFT_LED,
+                 s_blinkCnt < (uint8_t)(Cfg.brightness * 10) ? HIGH : LOW);
   }
 
   // 蜂鸣器翻转 (尽量频繁)
   Buzz.tickMicros();
 
   // ---- 编码器旋转 ----
+  // 原厂 UI: 手柄类型为 0xFF(无工具) 时直接退出界面逻辑, 不响应任何操作
+  const bool uiLocked = !Stn.tipPresent();
   int16_t delta = Enc.takeDelta();
-  if (delta != 0) {
+  if (!uiLocked && delta != 0) {
     if (Calib.active()) {
       Calib.move(delta);
       beep(3);
@@ -123,7 +127,7 @@ void loop() {
 
   // ---- 编码器按键 ----
   EncEvent ev = Enc.takeEvent();
-  if (ev == ENC_EVT_CLICK) {
+  if (!uiLocked && ev == ENC_EVT_CLICK) {
     if (Calib.active()) {
       // 校准页短按: 保存并退回校准项列表
       Calib.select();
@@ -151,7 +155,7 @@ void loop() {
       Screen.showQuickTempPrompt(t);
       beep(15);
     }
-  } else if (ev == ENC_EVT_HOLD) {
+  } else if (!uiLocked && ev == ENC_EVT_HOLD) {
     if (Calib.active()) {
       // 校准页长按: 放弃修改退回列表
       Calib.back();
@@ -183,6 +187,15 @@ void loop() {
   }
   if (Stn.tipPresent() != s_lastTip) {
     beep(Stn.tipPresent() ? 20 : 100);
+    // 拔出手柄时立即退出全屏页面, 避免 UI 被锁在菜单/校准页里无法退出
+    if (!Stn.tipPresent()) {
+      if (Calib.active())
+        Calib.exit();
+      if (About.active())
+        About.exit();
+      if (MenuCtl.active())
+        MenuCtl.exit();
+    }
     s_lastTip = Stn.tipPresent();
   }
 

@@ -127,7 +127,8 @@ void AboutPage::render() {
       r[0] = 0; // 首帧强制重画所有行
   }
 
-  char label[12], val[24], line[40];
+  // 标签最多 4 个汉字(12 字节), 需留结束符; 行内拼接再留 1 字节分隔符
+  char label[16], val[24], line[48];
   for (uint8_t i = 0; i < ROW_N; i++) {
     int16_t y = A_Y0 + i * A_ROW_H;
 #if LCD_W >= 200

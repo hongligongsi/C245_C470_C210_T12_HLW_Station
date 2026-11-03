@@ -30,7 +30,7 @@ struct Settings_t {
 
   // --- 基本设置 ---
   uint8_t soundOn;    // 1=蜂鸣器开
-  uint8_t brightness; // 1..100 背光占空比
+  uint8_t brightness; // 1..10 亮度档位(每档 10% 占空比)
   int16_t tempMin;    // 最低温度
   int16_t tempMax;    // 最高温度
   uint8_t tempStep;   // 旋转步进
