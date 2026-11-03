@@ -2,7 +2,7 @@
 
 基于 **HC32F460JETA**（Cortex-M4F, 512KB Flash / 192KB SRAM）的通用 T12 / C245 / C210（兼容 C470 手柄座）焊台固件，PlatformIO + Arduino 框架开发。
 
-带实时温度/功率曲线、树状设置菜单、片内 Flash 参数掉电保存、可视化校准与完善的软硬件保护。
+带实时温度/功率曲线、中文界面（两套主页风格 + 深浅主题）、树状设置菜单、片内 Flash 参数掉电保存、可视化校准与完善的软硬件保护。
 
 > **一句话介绍**：这是一块"自己动手做"的智能电烙铁控制板程序。插上 T12 / C245 / C210 / C470 任意一种手柄，它会自动认出是哪种头子，然后按你设定的温度精确加热，同时把温度曲线画在屏幕上。
 
@@ -288,6 +288,15 @@ pyocd load --target hc32f460xe -O connect_mode=under-reset .pio/build/hc32f460je
 
 也可以在 PlatformIO 面板里直接点 **Upload**（用的是 `platformio.ini` 中配置的同一命令 `upload_command`）。
 
+Windows 下还可以用仓库自带的 `flash.ps1` 一键完成"编译 + 烧录"（bin 已存在时跳过编译）：
+
+```powershell
+.\flash.ps1                  # 编码器版
+.\flash.ps1 -Button          # 三键版
+.\flash.ps1 -Auto            # 开机即用版
+.\flash.ps1 -Button -Build   # 强制重新编译后再烧录
+```
+
 **成功的样子**：`pyocd list` 能列出调试器；`load` 命令跑完进度到 100%，主板重新上电后屏幕点亮。
 
 **卡住了怎么办**：
@@ -366,7 +375,7 @@ pyocd load --target hc32f460xe -O connect_mode=under-reset .pio/build/hc32f460je
 |---|---|---|---|
 | 待机 STANDBY | 保温在「待机温度」（默认 100°C） | 支架休眠线触发，或待机时间到期 | 手柄操作唤醒（震动/旋钮/按键） |
 | 休眠 SLEEP | 停止加热 | 待机状态持续「休眠时间」（编码器/三键默认 10min，即用版 5min）未解除 | 仅长按编码器唤醒 |
-| BOOST | 目标温度 +50°C 强化加热 | 工具设置中开启后按 HOME 键触发 | 超时自动退出或再次短按 |
+| BOOST | 目标温度 +50°C 强化加热 | 工具设置 →「升压」开启 | 再次关闭「升压」或退出加热状态 |
 
 白话理解：
 
@@ -639,12 +648,13 @@ USB 只负责调试器与电脑通信，主板加热供电必须来自符合规�
 ```
 C245_C470_C210_T12_HLW_Station/
 ├── platformio.ini          # PlatformIO 工程配置（屏幕型号在此切换）
+├── flash.ps1               # Windows 一键编译 + 烧录脚本
 ├── boards/
 │   └── hc32f460jeta.json   # 自定义板级定义（启用 OTS/EFM 驱动）
 ├── docs/
 │   └── UI预览.html         # 320×240 UI 一比一复刻页（可交互，浏览器打开）
 ├── firmware/               # 发行包：三个可烧录 .bin + 固件说明.txt
-├── bin/                    # 最近一次本地编译产物（构建后刷新）
+├── bin/                    # 最近一次本地编译产物：firmware_encoder / button / auto.bin
 └── src/
     ├── main.cpp            # 主循环：事件分流、编码器、背光 PWM、蜂鸣
     ├── board.h             # 引脚 / 硬件参数 / 保护阈值 / ID 分档宏
@@ -689,8 +699,15 @@ C245_C470_C210_T12_HLW_Station/
 
 ### 资源占用
 
-320×240 横屏构建：Flash ≈ 48.8KB（9.5%），RAM ≈ 164KB（85.4%，主要为显示帧缓冲）。
-小屏（80×160）构建：Flash 与横屏接近（≈51KB），RAM ≈ 39KB（20%）。
+320×240 横屏构建（最新实测）：
+
+| 环境 | Flash | RAM |
+|---|---|---|
+| `hc32f460jeta`（编码器） | 54536 B ≈ 53.2KB（10.4%） | 168136 B ≈ 164KB（85.5%） |
+| `hc32f460jeta-btn`（三键） | 54672 B ≈ 53.4KB（10.4%） | 同上 |
+| `hc32f460jeta-auto`（开机即用） | 53432 B ≈ 52.2KB（10.2%） | 同上 |
+
+小屏（80×160）构建：Flash 与横屏接近（≈52KB），RAM ≈ 39KB（20%，帧缓冲仅 25KB）。
 
 > 想加功能时注意 RAM：大屏构建的帧缓冲已占掉大部分内存，扩功能前先评估余量，或改用小屏 / 分块刷新。
 
@@ -702,6 +719,7 @@ C245_C470_C210_T12_HLW_Station/
 
 | 文档 | 内容 |
 |---|---|
+| [Wiki 首页](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki) | 项目总览与导航 |
 | [UI 预览（复刻版）](docs/UI预览.html) | 320×240 界面一比一复刻：两套主页、菜单、校准页、故障页，可交互 |
 | [快速开始](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Quick-Start) | 环境、编译、烧录 |
 | [硬件与接线](https://github.com/hongligongsi/C245_C470_C210_T12_HLW_Station/wiki/Hardware) | 引脚表、手柄接线、双压校验 |

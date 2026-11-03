@@ -668,7 +668,7 @@ void Ui::drawWideStatus() {
     col = Pal.warn;
   } else if (!Stn.tipPresent()) {
     id = 3;
-    txt = "请插入工具";
+    txt = "无工具"; // 顶栏状态; 底部提示仍为"请插入工具"
     col = Pal.danger;
   } else if (Stn.fault() == FAULT_OVERCUR) {
     id = 4;
