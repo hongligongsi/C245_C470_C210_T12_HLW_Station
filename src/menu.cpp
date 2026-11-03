@@ -399,8 +399,8 @@ void Menu::select() {
     }
     break;
   case NT_INFO:
-  default:
-    break; // 关于本机: 无操作
+    _infoPick = it; // 关于本机: 交由 main 启动全屏信息页
+    break;
   }
 }
 
@@ -450,7 +450,7 @@ static void buildValue(const MenuItem *it, char *out, size_t n) {
     break;
   case NT_INFO:
   default:
-    snprintf(out, n, "-");
+    snprintf(out, n, ">"); // 关于本机: 可进入
     break;
   }
 }

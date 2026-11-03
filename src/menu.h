@@ -74,6 +74,13 @@ public:
     return it;
   }
 
+  // 短按选中 INFO 项(关于本机)时取出, 用于启动全屏信息页
+  const MenuItem *takeInfoPick() {
+    const MenuItem *it = _infoPick;
+    _infoPick = nullptr;
+    return it;
+  }
+
   void render(); // 由 UI 在菜单激活时调用
 
 private:
@@ -92,6 +99,7 @@ private:
   bool _needsClear = true;
   const MenuItem *_editItem = nullptr;
   const MenuItem *_calibPick = nullptr; // 待启动全屏校准页的项
+  const MenuItem *_infoPick = nullptr;  // 待启动全屏信息页的项
   int32_t _editI = 0;
   float _editF = 0;
 

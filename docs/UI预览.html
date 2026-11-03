@@ -603,6 +603,7 @@ function resetAll() {
 }
 
 const M = { on: false, stack: [], editing: null, editI: 0, editF: 0 };
+const AB = { on: false }; // 关于本机信息页
 const MENU_SCALE = 2, ROW_H = 20, TITLE_H = 20;
 function menuEnter() {
   M.on = true;
@@ -618,6 +619,7 @@ function menuBuildValue(it) {
     case NT.FLOAT: return it.get().toFixed(1);
     case NT.SELECT: return it.opts[it.get()] || '';
     case NT.ACTION: return it.stateFn ? (it.stateFn() ? '开' : '关') : '执行';
+    case NT.INFO: return '>';
     default: return '-';
   }
 }
@@ -658,6 +660,8 @@ function menuSelect() {
     M.editing = it; M.editI = it.get(); M.editF = it.get();
   } else if (it.type === NT.ACTION) {
     it.action && it.action();
+  } else if (it.type === NT.INFO) {
+    AB.on = true; // 关于本机 -> 全屏信息页
   }
 }
 function commitEdit() {
@@ -783,9 +787,46 @@ function drawCalib(P) {
 }
 
 // ---------------------------------------------------------------------------
+// 关于本机信息页 (src/about.cpp, 320x240)
+// ---------------------------------------------------------------------------
+function uptimeStr() {
+  const s = Math.floor(now() / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h) return h + 'h' + String(m).padStart(2, '0') + 'm';
+  return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+}
+function drawAbout(P) {
+  rect(0, 0, W, H, P.bg);
+  rect(0, 0, W, 20, P.fg);
+  text(3, (20 - 14) / 2, '关于本机', P.bg, P.fg, 2);
+  const hint = '短按返回';
+  text(W - tw(hint, 1) - 4, 20 / 2 - 3, hint, P.bg, P.fg, 1);
+
+  const rows = [
+    ['固件版本', 'v1.1.0'],
+    ['编译时间', '模拟器'],
+    ['主控', 'HC32F460JETA'],
+    ['配置版本', 'v3'],
+    ['当前手柄', S.present ? S.tip : '未插入'],
+    ['供电电压', S.vbus.toFixed(1) + ' V' + (S.tip === 'C245' ? ' 高压' : '')],
+    ['焊头温度', S.present ? Math.round(S.temp) + ' C' : '---'],
+    ['环境温度', Math.round(S.ambient || 26) + ' C'],
+    ['运行时长', uptimeStr()],
+  ];
+  const Y0 = 26, RH = 20;
+  rows.forEach((r, i) => {
+    const y = Y0 + i * RH;
+    text(6, y + (RH - 9) / 2 + 1, r[0], P.fg, P.bg, 1);
+    const vw = tw(r[1], 1);
+    text(W - vw - 6, y + (RH - 9) / 2 + 1, r[1], P.info, P.bg, 1);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 交互
 // ---------------------------------------------------------------------------
 function rotate(d) {
+  if (AB.on) return; // 信息页只读
   if (CAL.item) { calibMove(d); return; }
   if (M.on) { menuMove(d); return; }
   if (S.fault) return;
@@ -799,6 +840,7 @@ function rotate(d) {
   S.promptMs = now(); S.promptTemp = v;
 }
 function shortPress() {
+  if (AB.on) { AB.on = false; return; }
   if (CAL.item) { calibSave(); return; }
   if (M.on) { menuSelect(); return; }
   if (S.fault) { S.fault = null; S.mode = 'HEAT'; return; }
@@ -809,6 +851,7 @@ function shortPress() {
   S.promptMs = now(); S.promptTemp = S.setTemp;
 }
 function longPress() {
+  if (AB.on) { AB.on = false; return; }
   if (CAL.item) { CAL.item = null; return; }
   if (M.on) { menuBack(); return; }
   if (S.fault) { S.fault = null; S.mode = 'HEAT'; return; }
@@ -896,6 +939,8 @@ function render() {
     drawSplash(P);
   } else if (CAL.item) {
     drawCalib(P);
+  } else if (AB.on) {
+    drawAbout(P);
   } else if (M.on) {
     drawMenu(P);
   } else {

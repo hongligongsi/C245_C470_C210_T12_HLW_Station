@@ -4,6 +4,7 @@
  *        控件仅在数值变化时重绘, 配合脏区域把软 SPI 流量降到最低
  */
 #include "ui.h"
+#include "about.h"
 #include "board.h"
 #include "calib.h"
 #include "font5x7.h"
@@ -1028,6 +1029,17 @@ void Ui::update() {
   if (Calib.active()) {
     Calib.render();
     Lcd.present();
+    return;
+  }
+
+  // 全屏「关于本机」信息页: 覆盖菜单(500ms 节流即可, 只读页变化少)
+  if (About.active()) {
+    static uint32_t s_aboutLast = 0;
+    if (now - s_aboutLast >= 500) {
+      s_aboutLast = now;
+      About.render();
+      Lcd.present();
+    }
     return;
   }
 

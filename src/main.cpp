@@ -21,6 +21,7 @@
  *
  * 保护: 欠压 17V / 过压 50.5V / 超温 480°C / 过流 6A / 无烙铁头检测
  */
+#include "about.h"
 #include "board.h"
 #include "buzzer.h"
 #include "calib.h"
@@ -107,6 +108,8 @@ void loop() {
     if (Calib.active()) {
       Calib.move(delta);
       beep(3);
+    } else if (About.active()) {
+      // 信息页只读, 旋转无操作
     } else if (MenuCtl.active()) {
       MenuCtl.move(delta);
       beep(3);
@@ -126,11 +129,18 @@ void loop() {
       Calib.select();
       MenuCtl.invalidate();
       beep(20);
+    } else if (About.active()) {
+      // 信息页短按: 返回菜单
+      About.select();
+      MenuCtl.invalidate();
+      beep(20);
     } else if (MenuCtl.active()) {
       MenuCtl.select();
       const MenuItem *ci = MenuCtl.takeCalibItem();
       if (ci)
         Calib.enter(ci); // 校准项 -> 全屏可视化校准页
+      if (MenuCtl.takeInfoPick())
+        About.enter(); // 关于本机 -> 全屏信息页
       beep(15);
     } else if (Stn.mode() == MODE_FAULT) {
       Stn.clearFault();
@@ -145,6 +155,11 @@ void loop() {
     if (Calib.active()) {
       // 校准页长按: 放弃修改退回列表
       Calib.back();
+      MenuCtl.invalidate();
+      beep(20);
+    } else if (About.active()) {
+      // 信息页长按: 返回菜单
+      About.back();
       MenuCtl.invalidate();
       beep(20);
     } else if (MenuCtl.active()) {
