@@ -9,6 +9,7 @@
 #include "calib.h"
 #include "font5x7.h"
 #include "menu.h"
+#include "nokey.h"
 #include "settings.h"
 #include "station.h"
 #include "tft.h"
@@ -423,6 +424,36 @@ void Ui::drawFooter() {
   // 常规操作提示
   uint8_t id;
   const char *txt;
+#ifdef NO_INPUT
+  // 即用版没有任何按键: 提示改为"拔插手势", 与无键设置保持一致的说明
+  if (!Stn.tipPresent()) {
+    id = 0;
+    txt = "拔插3次进设置";
+  } else
+    switch (Stn.mode()) {
+    case MODE_HEAT:
+    case MODE_BOOST:
+      id = 1;
+      txt = "拔插3次进设置";
+      break;
+    case MODE_SLEEP:
+      id = 3;
+      txt = "拔插唤醒";
+      break;
+    case MODE_STANDBY:
+      id = 4;
+      txt = "待机中";
+      break;
+    case MODE_FAULT:
+      id = 5;
+      txt = "拔插复位";
+      break;
+    default:
+      id = 6;
+      txt = "拔插加热";
+      break;
+    }
+#else
   if (!Stn.tipPresent()) {
     id = 0;
     txt = "请插入工具";
@@ -456,6 +487,7 @@ void Ui::drawFooter() {
       txt = "轻按加热";
       break;
     }
+#endif
 
   if (id != _lastFooter) {
     Lcd.fillRect(0, LCD_H - 13, LCD_W, 13, Pal.bg);
@@ -495,24 +527,31 @@ void Ui::drawFault() {
     break;
   }
 
+  // 复位提示: 有按键时轻按/长按复位, 即用版只能拔插手柄
+#ifdef NO_INPUT
+  const char *reset = "拔插手柄复位";
+#else
+  const char *reset = "重启恢复";
+#endif
+
 #if LCD_W >= 200
-  // 对齐原厂故障页: 无"!"与色块, 居中两行白字(故障原因 + 重启恢复)
+  // 对齐原厂故障页: 无"!"与色块, 居中两行白字(故障原因 + 复位提示)
   const uint8_t cs = 3, as = 4;   // 汉字 3 倍(36px), ASCII 4 倍(28px)
   const uint8_t lineH = 12 * cs; // 汉字原始 12px
   const uint8_t gap = 16;
   int16_t y1 = (LCD_H - (lineH * 2 + gap)) / 2;
   int16_t w1 = Lcd.textWidth(reason, as, cs);
   Lcd.drawText((LCD_W - w1) / 2, y1, reason, Pal.fg, Pal.bg, as, cs);
-  int16_t w2 = Lcd.textWidth("重启恢复", as, cs);
-  Lcd.drawText((LCD_W - w2) / 2, y1 + lineH + gap, "重启恢复", Pal.fg, Pal.bg,
-               as, cs);
+  int16_t w2 = Lcd.textWidth(reset, as, cs);
+  Lcd.drawText((LCD_W - w2) / 2, y1 + lineH + gap, reset, Pal.fg, Pal.bg, as,
+               cs);
 #else
   // 小屏: 12px 汉字不放大
   const int16_t fy2 = 56;
   Lcd.drawText((LCD_W - Lcd.textWidth(reason, 1)) / 2, fy2, reason, Pal.fg,
                Pal.bg, 1);
-  Lcd.drawText((LCD_W - Lcd.textWidth("重启恢复", 1)) / 2, fy2 + 24, "重启恢复",
-               Pal.fg, Pal.bg, 1);
+  Lcd.drawText((LCD_W - Lcd.textWidth(reset, 1)) / 2, fy2 + 24, reset, Pal.fg,
+               Pal.bg, 1);
 #endif
 }
 
@@ -549,7 +588,12 @@ void Ui::drawStatePage(const char *title, uint16_t titleCol, const char *sub,
 }
 
 void Ui::drawNoTipPage() {
+#ifdef NO_INPUT
+  // 即用版: 提示如何进入无键设置(这是唯一能改参数的入口)
+  drawStatePage("无工具", Pal.danger, "请插入手柄", "拔插3次进设置");
+#else
   drawStatePage("无工具", Pal.danger, "请插入手柄", "插入后自动识别");
+#endif
 }
 
 void Ui::drawTipChangePage() {
@@ -562,7 +606,9 @@ void Ui::drawTipChangePage() {
 
 void Ui::drawSleepPage() {
   _lastSleepTemp = 0x7FFF; // 强制下面的温度行重画
-#if LCD_W >= 200
+#ifdef NO_INPUT
+  drawStatePage("已休眠", Pal.info, "拔插手柄唤醒", nullptr);
+#elif LCD_W >= 200
   drawStatePage("已休眠", Pal.info, "旋转或短按唤醒", nullptr);
 #else
   drawStatePage("已休眠", Pal.info, "旋转唤醒", nullptr);
@@ -1105,6 +1151,13 @@ void Ui::drawWideCurve() {
 
 void Ui::update() {
   uint32_t now = millis();
+
+  // 无键设置页(即用版): 覆盖一切界面, 用手柄拔插操作
+  if (NoKey.active()) {
+    NoKey.render();
+    Lcd.present();
+    return;
+  }
 
   // 全屏校准页: 覆盖菜单, 不做 100ms 节流(保证旋钮跟手, 页内自带缓存)
   if (Calib.active()) {

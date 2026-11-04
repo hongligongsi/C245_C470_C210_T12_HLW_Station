@@ -41,13 +41,9 @@ static void fillDefaults() {
   // 工具
   Cfg.standbyTemp = TEMP_STANDBY_C;
   Cfg.standbyTimeMin = 0; // 无震动开关, 禁用
-#ifdef NO_INPUT
-  Cfg.sleepTimeMin = 5; // 开机即用版(无输入): 5 分钟后停热
-#else
-  Cfg.sleepTimeMin = 10; // 其余版本默认 10 分钟, 菜单可改
-#endif
+  Cfg.sleepTimeMin = CFG_SLEEP_MIN; // 出厂默认, 菜单/无键设置可改
   Cfg.quickTemp[0] = 300;
-  Cfg.quickTemp[1] = 350;
+  Cfg.quickTemp[1] = CFG_BOOT_TEMP; // 开机温度(即用版上电即加热到该值)
   Cfg.quickTemp[2] = 400;
   Cfg.boostOn = 0;
   Cfg.vibEnable = 0; // V1.7 板未引出震动开关, 默认关; 需配合非0待机时间

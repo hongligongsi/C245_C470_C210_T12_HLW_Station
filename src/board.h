@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 // 固件标识 (「关于本机」页显示)
 // ---------------------------------------------------------------------------
-#define FW_VERSION "1.2.1"
+#define FW_VERSION "1.2.2"
 #define FW_BUILD_TIME __DATE__ " " __TIME__
 #define MCU_NAME "HC32F460JETA"
 
@@ -146,6 +146,23 @@
 #define TEMP_MIN_C 100
 #define TEMP_MAX_C 450
 #define TEMP_DEFAULT_C 350
+
+// ---------------------------------------------------------------------------
+// 出厂默认参数(只影响"Flash 无有效配置"的首次开机 / 系统重置后的值):
+//   批量出货时可一机一参, 例如 platformio.ini 里加
+//     -DCFG_BOOT_TEMP=320 -DCFG_SLEEP_MIN=3
+//   即用版也可以在「无键设置」里改开机温度与休眠时间, 不必重新编译。
+// ---------------------------------------------------------------------------
+#ifndef CFG_BOOT_TEMP
+#define CFG_BOOT_TEMP TEMP_DEFAULT_C // 开机温度(= 快捷温度第二档)
+#endif
+#ifndef CFG_SLEEP_MIN
+#ifdef NO_INPUT
+#define CFG_SLEEP_MIN 5 // 即用版: 5 分钟无操作停热
+#else
+#define CFG_SLEEP_MIN 10
+#endif
+#endif
 
 // 原厂 PWM 映射(CMPAR = pid×90 + 100, 周期 450)在 pid=0 时约占空比 22%,
 // 即加热一旦开启就不低于最低功率。本工程输出为 0~100%:

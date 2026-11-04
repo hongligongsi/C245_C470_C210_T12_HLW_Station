@@ -46,6 +46,10 @@ public:
 
   // 用户操作
   void adjustSetTemp(int16_t delta);
+  // 直接设定目标温度(无键设置页用), 不改变开关机/休眠状态
+  void setSetTemp(int16_t t);
+  // 无键设置期间锁定加热(=true 时强制 MODE_OFF 并清空积分), 防止边设置边烧红
+  void setConfigLock(bool on);
   void togglePower();
   void setBoost(bool on);
   int16_t cycleQuickTemp(); // 循环快捷温度, 返回新设定温度
@@ -128,6 +132,7 @@ private:
   bool _tipSwitchOpen = false;
   bool _boost = false;
   bool _powerOn = false;
+  bool _cfgLock = false;     // 无键设置锁定(强制停热)
   bool _sleeping = false;    // 休眠闩锁(支架或休眠时间到期)
   bool _lastVibLevel = true; // 滚珠开关上次电平(低有效, 上拉)
   uint8_t _quickIdx = 0;

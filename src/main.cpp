@@ -27,6 +27,7 @@
 #include "calib.h"
 #include "encoder.h"
 #include "menu.h"
+#include "nokey.h"
 #include "settings.h"
 #include "station.h"
 #include "ui.h"
@@ -83,6 +84,7 @@ void setup() {
   beep(25);
   s_lastTip = Stn.tipPresent();
   s_lastFault = Stn.fault();
+  NoKey.begin(); // 无键版(即用版): 记录手柄初态, 开始识别拔插手势
 }
 
 void loop() {
@@ -201,6 +203,7 @@ void loop() {
 
   // ---- 业务与界面 ----
   Stn.task();
+  NoKey.tick(); // 无键版: 拔插手势 / 无键设置向导(有输入的版本为空实现)
   alarmTick(now);
   Screen.update();
 }

@@ -208,6 +208,25 @@ void Station::adjustSetTemp(int16_t delta) {
   _lastInputMs = millis();
 }
 
+// 直接设定目标温度(无键设置页): 只钳位, 不改开关机/休眠状态
+void Station::setSetTemp(int16_t t) {
+  if (t < Cfg.tempMin)
+    t = Cfg.tempMin;
+  if ((float)t > _tempMaxEff)
+    t = (int16_t)_tempMaxEff;
+  _setTemp = t;
+}
+
+// 无键设置锁定: 设置期间强制停热, 避免插着手柄边改参数边加热
+void Station::setConfigLock(bool on) {
+  _cfgLock = on;
+  if (on) {
+    _boost = false;
+    _integral = 0.0f;
+    _prevErr = 0.0f;
+  }
+}
+
 void Station::togglePower() {
   _powerOn = !_powerOn;
   _lastInputMs = millis();
@@ -536,6 +555,10 @@ void Station::controlStep(uint32_t now) {
   int16_t target = -1;
   if (_fault != FAULT_NONE) {
     _mode = MODE_FAULT;
+  } else if (_cfgLock) {
+    // 无键设置中: 强制停热(手柄插着也不加热), 设置完成解除
+    _mode = MODE_OFF;
+    target = -1;
   } else if (!_tipPresent) {
     _mode = MODE_OFF;
   } else if (_tipSwitchOpen || !_powerOn) {
