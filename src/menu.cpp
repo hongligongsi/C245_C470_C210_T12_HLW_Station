@@ -36,8 +36,6 @@ static void actResetAll(bool /*on*/) {
   Settings_Reset(false);
   Stn.syncConfig();
 }
-static void actBoost(bool on) { Stn.setBoost(on); }
-static bool stateBoost() { return Stn.boostActive(); }
 
 // ---------------------------------------------------------------------------
 // 菜单树
@@ -58,19 +56,7 @@ static const MenuItem s_basic[] = {
      "C", nullptr, nullptr, nullptr, 0},
 };
 
-// 参数调整 (工具设置下级): PID 参数 + 功率输出
-static const MenuItem s_pid[] = {
-    {"比例项", NT_FLOAT, &Cfg.pidP, 4, 0, 0, 0, 1.0f, 100.0f, 0.5f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"积分项", NT_FLOAT, &Cfg.pidI, 4, 0, 0, 0, 0.0f, 5.0f, 0.1f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"微分项", NT_FLOAT, &Cfg.pidD, 4, 0, 0, 0, 0.0f, 100.0f, 0.5f, nullptr, 0,
-     nullptr, nullptr, nullptr, nullptr, 0},
-    {"控制带宽", NT_FLOAT, &Cfg.pidBand, 4, 0, 0, 0, 1.0f, 100.0f, 1.0f, nullptr,
-     0, nullptr, nullptr, nullptr, nullptr, 0},
-    {"功率输出", NT_INT, &Cfg.powerLimitPct, 1, 10, 100, 5, 0.0f, 0.0f, 0.0f,
-     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
-};
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // 手柄参数 (工具设置下级): 按型号一套 PID + 功率上限 + 温度上限
@@ -123,6 +109,23 @@ static const MenuItem s_tips[] = {
      nullptr, nullptr, nullptr, s_tip_c245, 5},
 };
 
+// 参数调整 (工具设置下级): PID 参数 + 功率输出 + 手柄参数
+//   「手柄参数」原本平铺在工具设置里, 收进本页, 工具设置只留常用项
+static const MenuItem s_pid[] = {
+    {"比例项", NT_FLOAT, &Cfg.pidP, 4, 0, 0, 0, 1.0f, 100.0f, 0.5f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"积分项", NT_FLOAT, &Cfg.pidI, 4, 0, 0, 0, 0.0f, 5.0f, 0.1f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"微分项", NT_FLOAT, &Cfg.pidD, 4, 0, 0, 0, 0.0f, 100.0f, 0.5f, nullptr, 0,
+     nullptr, nullptr, nullptr, nullptr, 0},
+    {"控制带宽", NT_FLOAT, &Cfg.pidBand, 4, 0, 0, 0, 1.0f, 100.0f, 1.0f, nullptr,
+     0, nullptr, nullptr, nullptr, nullptr, 0},
+    {"功率输出", NT_INT, &Cfg.powerLimitPct, 1, 10, 100, 5, 0.0f, 0.0f, 0.0f,
+     nullptr, 0, "%", nullptr, nullptr, nullptr, 0},
+    {"手柄参数", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_tips, 4},
+};
+
 // 2.工具设置
 // 快捷温度 1~3 档(工具设置下级): 主页短按循环切换
 static const MenuItem s_quick[] = {
@@ -145,12 +148,8 @@ static const MenuItem s_tools[] = {
      nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
     {"快捷温度", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_quick, 3},
-    {"升压", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, actBoost, stateBoost, nullptr, 0},
     {"参数调整", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_pid, 5},
-    {"手柄参数", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_tips, 4},
+     nullptr, nullptr, nullptr, s_pid, 6},
     // 滚珠开关: 待机时间=0 时此项无意义; 需硬件引接 PIN_VIBRATION
     {"滚珠开关", NT_BOOL, &Cfg.vibEnable, 1, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr,
      0, nullptr, nullptr, nullptr, nullptr, 0},
@@ -187,7 +186,7 @@ static const MenuItem s_root[] = {
     {"基本设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_basic, 5},
     {"工具设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_tools, 8},
+     nullptr, nullptr, nullptr, s_tools, 6},
     {"主题风格", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_theme, 2},
     {"温度校准", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,

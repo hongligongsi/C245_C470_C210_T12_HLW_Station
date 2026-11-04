@@ -546,13 +546,7 @@ const s_basic = [
   num('温度步进', 'tempStep', 1, 50, 1, 'C'),
 ];
 
-const s_pid = [
-  fnum('比例项', 'pidP', 1, 100, 0.5),
-  fnum('积分项', 'pidI', 0, 5, 0.1),
-  fnum('微分项', 'pidD', 0, 100, 0.5),
-  fnum('控制带宽', 'pidBand', 1, 100, 1),
-  num('功率输出', 'power', 10, 100, 5, '%'),
-];
+// 参数调整 (src/menu.cpp s_pid) 定义在 s_tips 之后(需引用手柄参数子菜单)
 
 // 手柄参数 (src/menu.cpp s_tips / TIP_PID_ROW / TIP_INT_ROW)
 // 功率上限/温度上限填 0 表示跟随全局设置; PID 直接生效
@@ -576,6 +570,15 @@ const s_tips = [
   item('C245', NT.SUBMENU, { children: tipSub('C245') }),
 ];
 
+const s_pid = [
+  fnum('比例项', 'pidP', 1, 100, 0.5),
+  fnum('积分项', 'pidI', 0, 5, 0.1),
+  fnum('微分项', 'pidD', 0, 100, 0.5),
+  fnum('控制带宽', 'pidBand', 1, 100, 1),
+  num('功率输出', 'power', 10, 100, 5, '%'),
+  item('手柄参数', NT.SUBMENU, { children: s_tips }),
+];
+
 const s_quick = [
   item('快捷一', NT.INT, { get: () => S.quick[0], set: v => { S.quick[0] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
   item('快捷二', NT.INT, { get: () => S.quick[1], set: v => { S.quick[1] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
@@ -587,9 +590,7 @@ const s_tools = [
   num('待机时间', 'standbyMin', 0, 30, 1, '分'),
   num('休眠时间', 'sleepMin', 0, 255, 1, '分'),
   item('快捷温度', NT.SUBMENU, { children: s_quick }),
-  item('升压', NT.ACTION, { stateFn: () => S.boost, action: () => { S.boost = !S.boost; } }),
   item('参数调整', NT.SUBMENU, { children: s_pid }),
-  item('手柄参数', NT.SUBMENU, { children: s_tips }),
   boolItem('滚珠开关', 'vib'),
 ];
 
