@@ -8,7 +8,7 @@
         {
             "name": "PlatformIO",
             "includePath": [
-                "C:/Users/hongliwang/Desktop/duanshila/C245_C470_C210_T12_HLW_Station/src",
+                "C:/Users/hongliwang/Desktop/C245_C470_C210_T12_HLW_Station/src",
                 "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/libraries/OnChipTemperature",
                 "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino",
                 "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino/drivers",
@@ -33,7 +33,7 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
                 "path": [
-                    "C:/Users/hongliwang/Desktop/duanshila/C245_C470_C210_T12_HLW_Station/src",
+                    "C:/Users/hongliwang/Desktop/C245_C470_C210_T12_HLW_Station/src",
                     "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/libraries/OnChipTemperature",
                     "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino",
                     "C:/Users/hongliwang/.platformio/packages/framework-arduino-hc32f46x/cores/arduino/drivers",
@@ -57,7 +57,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=60119",
+                "PLATFORMIO=60200",
                 "CORE_ADC_RESOLUTION=12",
                 "USE_OTS",
                 "LCD_TYPE=3",

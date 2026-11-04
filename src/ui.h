@@ -109,6 +109,7 @@ private:
   int8_t _lastAmbient = -100;
   uint8_t _lastDutyPct = 0xFF;
   uint8_t _lastFooter = 0xFF;
+  uint8_t _lastNoTipKey = 0xFF; // 无工具页(即用版)文案缓存: 冷机窗口倒计时/冷却提示
   uint8_t _lastPage = 0xFF; // 0=home 1=fault 2=无工具 3=换芯 4=休眠
   int16_t _lastSleepTemp = 0x7FFF;
   uint8_t _lastStyle = 0xFF;

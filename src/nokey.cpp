@@ -21,12 +21,15 @@ Keyless NoKey;
 // ---------------------------------------------------------------------------
 // 注: 拔出要 500ms 消抖才被识别, 所以"快插快拔"实测约 600~800ms,
 //     判定窗口放到 900ms; 保持 1.4s 以上才算"减", 两者不重叠
-#define NK_TAP_MAX_MS 900    // 插入短于此时长 = "快插快拔"(加一步)
-#define NK_HOLD_MS 1400      // 插入保持超过此时长 = "减一步"
-#define NK_ADVANCE_MS 3000   // 停手 3s -> 保存并进入下一项
-#define NK_ENTER_GAP_MS 6000 // 连插手势总窗口
-#define NK_ENTER_COUNT 3     // 连插几次进入设置
-#define NK_DONE_MS 1500      // "已保存" 停留时间
+#define NK_TAP_MAX_MS 900  // 插入短于此时长 = "快插快拔"(加一步)
+#define NK_HOLD_MS 1400    // 插入保持超过此时长 = "减一步"
+#define NK_ADVANCE_MS 3000 // 停手 3s -> 保存并进入下一项
+#define NK_DONE_MS 1500    // "已保存" 停留时间
+
+// ⚠ 安全: 航空头(GX16)严禁带电插拔。烙铁头高于此温度时一律不认拔插手势,
+//   并且不允许进入设置; 上电冷机窗口内强制停热, 保证插拔时加热回路无电。
+#define NK_SAFE_TEMP_C 60.0f // 允许拔插的最高头温
+#define NK_ARM_MS 8000       // 上电冷机窗口(手柄不在位时)
 
 // 设置项(顺序即向导顺序)
 enum {
@@ -129,9 +132,34 @@ void Keyless::begin() {
   _lastTip = Stn.tipPresent();
   _gestMs = millis();
   _tapCount = 0;
+  _plugTemp = Stn.tipTemp();
+
+  // 上电时手柄不在位 = 用户按"断电 -> 拔手柄 -> 上电"的姿势要求进设置。
+  // 开一个 8s 冷机窗口: 期间强制停热(手柄回路无电), 这时插回手柄才安全。
+  _active = false;
+  _finished = false;
+  _hot = false;
+  _armed = false;
+  if (!_lastTip) {
+    _armed = true;
+    _armMs = millis();
+    Stn.setConfigLock(true);
+  }
+}
+
+uint8_t Keyless::armLeftSec() const {
+  if (!_armed || _hot)
+    return 0;
+  uint32_t el = millis() - _armMs;
+  if (el >= NK_ARM_MS)
+    return 0;
+  return (uint8_t)((NK_ARM_MS - el + 999) / 1000);
 }
 
 void Keyless::enter() {
+  // 双保险: 头还烫就绝不进入设置(此时插拔必然带电, 危险)
+  if (Stn.tipTemp() > NK_SAFE_TEMP_C)
+    return;
   _active = true;
   _finished = false;
   _needClear = true;
@@ -176,6 +204,37 @@ int16_t Keyless::preview() const {
 void Keyless::tick() {
   uint32_t now = millis();
   bool tip = Stn.tipPresent();
+  if (tip)
+    _plugTemp = Stn.tipTemp(); // 在位时才刷新(拔掉后读数不可靠)
+
+  // -------------------------------------------------------------------------
+  // 上电冷机窗口: 手柄不在位时开 8s, 期间强制停热。窗口内两种插法:
+  //   快插快拔(0.9s 内拔出) = 进「无键设置」
+  //   插住不动(1.4s)       = 当作正常使用, 关窗口恢复加热
+  // 若插回来时头还烫 -> 拒绝, 继续停热等冷却, 冷却后重新给 8s
+  // -------------------------------------------------------------------------
+  if (_armed) {
+    if (_hot) {
+      if (!tip) {
+        _hot = false; // 拔掉了: 重新计时, 再插回时重新测温判定
+        _armMs = now;
+      } else if (Stn.tipTemp() <= NK_SAFE_TEMP_C) {
+        // 插着已经凉了: 不再等窗口, 直接恢复常态加热(进设置需重新断电流程)
+        _hot = false;
+        _armed = false;
+        Stn.setConfigLock(false);
+      }
+    } else if (!tip) {
+      if (now - _armMs >= NK_ARM_MS) {
+        _armed = false;
+        Stn.setConfigLock(false); // 窗口结束: 恢复常态(无工具页)
+      }
+    } else if (now - _insertMs >= NK_HOLD_MS) {
+      // 插着不放: 用户只是要正常用, 别把他塞进设置页
+      _armed = false;
+      Stn.setConfigLock(false);
+    }
+  }
 
   // -------------------------------------------------------------------------
   // 拔插边沿
@@ -190,40 +249,31 @@ void Keyless::tick() {
       // 任何插入都算一次"用户在操作": 重置待机计时, 免得设置时被判待机
       Stn.notifyInput();
 
-      if (!_active) {
-        if (Stn.mode() == MODE_FAULT) {
-          Stn.clearFault(); // 无键版: 拔插一次清故障
-          beep(40);
-          _tapCount = 0;
-        } else if (Stn.mode() == MODE_SLEEP) {
-          Stn.wakeFromSleep(); // 无键版: 拔插一次唤醒
-          beep(40);
-          _tapCount = 0;
-        }
+      if (_armed && Stn.tipTemp() > NK_SAFE_TEMP_C) {
+        _hot = true; // 还烫: 拒绝任何手势, 继续停热等冷却
+        beep(150);
       }
     } else {
       // ---- 拔出 ----
-      uint32_t dur = now - _insertMs;
+      const uint32_t dur = now - _insertMs;
+      const bool cool = _plugTemp <= NK_SAFE_TEMP_C; // 烫的时候拔插不认
 
-      if (_active && !_finished) {
-        if (!_holdFired && dur <= NK_TAP_MAX_MS) {
+      if (_armed && !_hot) {
+        if (cool && dur <= NK_TAP_MAX_MS) {
+          _armed = false;
+          enter(); // 冷机窗口内"快插快拔" = 进设置(窗口内强制停热, 插拔无电流)
+        }
+      } else if (_active && !_finished) {
+        if (cool && !_holdFired && dur <= NK_TAP_MAX_MS) {
           _count++; // 快插快拔 = +1
           _lastActMs = now;
           beep(8);
         }
-      } else if (!_active) {
-        // 连插计数: 只有"插一下就拔"才算手势, 正常插着使用会清零
-        if (dur > NK_TAP_MAX_MS) {
-          _tapCount = 0;
-        } else {
-          if (_tapCount == 0 || now - _gestMs > NK_ENTER_GAP_MS) {
-            _tapCount = 0;
-            _gestMs = now;
-          }
-          if (++_tapCount >= NK_ENTER_COUNT)
-            enter();
-        }
+      } else if (!_active && Stn.mode() == MODE_SLEEP && cool) {
+        Stn.wakeFromSleep(); // 休眠时加热已停, 冷态拔插唤醒是安全的
+        beep(40);
       }
+      // 故障处理: 不允许拔插清故障(故障常来自连接器/短路), 只能断电重启
     }
   }
 
@@ -247,9 +297,11 @@ void Keyless::tick() {
   // -------------------------------------------------------------------------
   if (tip && !_holdFired && now - _insertMs >= NK_HOLD_MS) {
     _holdFired = true;
-    _count--;
-    _lastActMs = now;
-    beep(25);
+    if (Stn.tipTemp() <= NK_SAFE_TEMP_C) { // 冷态才认"插入保持 = -1"
+      _count--;
+      _lastActMs = now;
+      beep(25);
+    }
   }
 
   // -------------------------------------------------------------------------

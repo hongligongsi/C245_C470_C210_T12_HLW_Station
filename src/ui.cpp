@@ -172,6 +172,7 @@ static void drawFixed3(int16_t x, int16_t y, int16_t value, uint8_t scale,
 
 void Ui::invalidate() {
   _lastPage = 0xFF;
+  _lastNoTipKey = 0xFF;
   _lastStyle = 0xFF;
   _lastTheme = 0xFF;
   _lastHdrIcons = 0xFF;
@@ -206,6 +207,12 @@ void Ui::begin() {
   const char *t3 = "V1.7  HEAT UP";
   Lcd.drawText((LCD_W - Lcd.textWidth(t3, 1)) / 2, cy + 7 * ts + 12, t3,
                Pal.grid, Pal.bg, 1);
+#ifdef NO_INPUT
+  // 即用版靠手柄拔插操作, 开机先给红线提示: 高温时严禁插拔航空头
+  const char *t4 = "禁止带电插拔";
+  Lcd.drawText((LCD_W - Lcd.textWidth(t4, 1)) / 2, cy + 7 * ts + 30, t4,
+               Pal.danger, Pal.bg, 1);
+#endif
   Lcd.flushAll();
   delay(1200);
 
@@ -427,14 +434,15 @@ void Ui::drawFooter() {
 #ifdef NO_INPUT
   // 即用版没有任何按键: 提示改为"拔插手势", 与无键设置保持一致的说明
   if (!Stn.tipPresent()) {
-    id = 0;
-    txt = "拔插3次进设置";
+    id = NoKey.armed() ? 7 : 0;
+    txt = NoKey.armed() ? "插入手柄进设置" : "插入手柄";
   } else
     switch (Stn.mode()) {
     case MODE_HEAT:
     case MODE_BOOST:
+      // 安全提示: 要进设置必须断电拔手柄, 不许热插拔航空头
       id = 1;
-      txt = "拔插3次进设置";
+      txt = "断电拔手柄进设置";
       break;
     case MODE_SLEEP:
       id = 3;
@@ -446,11 +454,11 @@ void Ui::drawFooter() {
       break;
     case MODE_FAULT:
       id = 5;
-      txt = "拔插复位";
+      txt = "断电重启";
       break;
     default:
       id = 6;
-      txt = "拔插加热";
+      txt = "插入加热";
       break;
     }
 #else
@@ -529,7 +537,7 @@ void Ui::drawFault() {
 
   // 复位提示: 有按键时轻按/长按复位, 即用版只能拔插手柄
 #ifdef NO_INPUT
-  const char *reset = "拔插手柄复位";
+  const char *reset = "断电重启";
 #else
   const char *reset = "重启恢复";
 #endif
@@ -589,8 +597,35 @@ void Ui::drawStatePage(const char *title, uint16_t titleCol, const char *sub,
 
 void Ui::drawNoTipPage() {
 #ifdef NO_INPUT
-  // 即用版: 提示如何进入无键设置(这是唯一能改参数的入口)
-  drawStatePage("无工具", Pal.danger, "请插入手柄", "拔插3次进设置");
+  // 即用版: 上电冷机窗口里提示"插入手柄进设置"(唯一入口, 冷态操作才安全)
+  const char *title = "无工具";
+  const char *sub = "请插入手柄";
+  uint16_t col = Pal.danger;
+  char hint[32];
+  uint8_t key;
+
+  if (NoKey.armed()) {
+    if (NoKey.hotWait()) {
+      key = 200;
+      sub = "烙铁头仍热";
+      snprintf(hint, sizeof(hint), "冷却后插拔");
+      col = Pal.warn;
+    } else {
+      key = 199;
+      sub = "快插快拔进设置";
+      snprintf(hint, sizeof(hint), "插住不动即加热");
+      col = Pal.info;
+    }
+  } else {
+    key = 201;
+    snprintf(hint, sizeof(hint), "断电拔手柄进设置");
+  }
+
+  if (key == _lastNoTipKey)
+    return;
+  _lastNoTipKey = key;
+  Lcd.clear(Pal.bg);
+  drawStatePage(title, col, sub, hint);
 #else
   drawStatePage("无工具", Pal.danger, "请插入手柄", "插入后自动识别");
 #endif
@@ -1240,6 +1275,7 @@ void Ui::update() {
     _lastAmbient = -100;
     _lastDutyPct = 0xFF;
     _lastFooter = 0xFF;
+    _lastNoTipKey = 0xFF;
     _lastPage = page;
   }
 
