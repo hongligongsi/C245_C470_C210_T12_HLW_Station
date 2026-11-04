@@ -124,6 +124,16 @@ static const MenuItem s_tips[] = {
 };
 
 // 2.工具设置
+// 快捷温度 1~3 档(工具设置下级): 主页短按循环切换
+static const MenuItem s_quick[] = {
+    {"快捷一", NT_INT, &Cfg.quickTemp[0], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷二", NT_INT, &Cfg.quickTemp[1], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷三", NT_INT, &Cfg.quickTemp[2], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
+     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+};
+
 static const MenuItem s_tools[] = {
     {"待机温度", NT_INT, &Cfg.standbyTemp, 2, 50, 300, 5, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
@@ -133,12 +143,8 @@ static const MenuItem s_tools[] = {
     // 休眠时间上限受 uint8 存储字段限制为 255 分钟
     {"休眠时间", NT_INT, &Cfg.sleepTimeMin, 1, 0, 255, 1, 0.0f, 0.0f, 0.0f,
      nullptr, 0, "分", nullptr, nullptr, nullptr, 0},
-    {"快捷一", NT_INT, &Cfg.quickTemp[0], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
-     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"快捷二", NT_INT, &Cfg.quickTemp[1], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
-     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
-    {"快捷三", NT_INT, &Cfg.quickTemp[2], 2, 50, TEMP_MAX_C, 5, 0.0f, 0.0f,
-     0.0f, nullptr, 0, "C", nullptr, nullptr, nullptr, 0},
+    {"快捷温度", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
+     nullptr, nullptr, nullptr, s_quick, 3},
     {"升压", NT_ACTION, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, actBoost, stateBoost, nullptr, 0},
     {"参数调整", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
@@ -181,7 +187,7 @@ static const MenuItem s_root[] = {
     {"基本设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_basic, 5},
     {"工具设置", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
-     nullptr, nullptr, nullptr, s_tools, 10},
+     nullptr, nullptr, nullptr, s_tools, 8},
     {"主题风格", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,
      nullptr, nullptr, nullptr, s_theme, 2},
     {"温度校准", NT_SUBMENU, nullptr, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, nullptr, 0,

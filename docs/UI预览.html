@@ -576,13 +576,17 @@ const s_tips = [
   item('C245', NT.SUBMENU, { children: tipSub('C245') }),
 ];
 
+const s_quick = [
+  item('快捷一', NT.INT, { get: () => S.quick[0], set: v => { S.quick[0] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+  item('快捷二', NT.INT, { get: () => S.quick[1], set: v => { S.quick[1] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+  item('快捷三', NT.INT, { get: () => S.quick[2], set: v => { S.quick[2] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+];
+
 const s_tools = [
   num('待机温度', 'standbyTemp', 50, 300, 5, 'C'),
   num('待机时间', 'standbyMin', 0, 30, 1, '分'),
   num('休眠时间', 'sleepMin', 0, 255, 1, '分'),
-  item('快捷一', NT.INT, { get: () => S.quick[0], set: v => { S.quick[0] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
-  item('快捷二', NT.INT, { get: () => S.quick[1], set: v => { S.quick[1] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
-  item('快捷三', NT.INT, { get: () => S.quick[2], set: v => { S.quick[2] = v; }, min: 50, max: 450, step: 5, suffix: 'C' }),
+  item('快捷温度', NT.SUBMENU, { children: s_quick }),
   item('升压', NT.ACTION, { stateFn: () => S.boost, action: () => { S.boost = !S.boost; } }),
   item('参数调整', NT.SUBMENU, { children: s_pid }),
   item('手柄参数', NT.SUBMENU, { children: s_tips }),
