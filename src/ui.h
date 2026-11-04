@@ -43,6 +43,13 @@ private:
   void drawTelemetry(int16_t y1, int16_t y2);
   void drawFooter();
   void drawFault();
+  // 全屏状态页: 无工具 / 换芯 / 休眠 (互斥, 覆盖主页)
+  void drawStatePage(const char *title, uint16_t titleCol, const char *sub,
+                     const char *hint);
+  void drawNoTipPage();
+  void drawTipChangePage();
+  void drawSleepPage();     // 静态部分: 标题/副标题
+  void drawSleepTemp();     // 动态部分: 当前温度(变化才重绘)
   void drawCurve();    // 曲线风格主页(小屏)
   void drawStandard(); // 标准风格主页(小屏)
   void pushHistory();
@@ -102,7 +109,8 @@ private:
   int8_t _lastAmbient = -100;
   uint8_t _lastDutyPct = 0xFF;
   uint8_t _lastFooter = 0xFF;
-  uint8_t _lastPage = 0xFF; // 0=home 1=fault (菜单由 MenuCtl 自管)
+  uint8_t _lastPage = 0xFF; // 0=home 1=fault 2=无工具 3=换芯 4=休眠
+  int16_t _lastSleepTemp = 0x7FFF;
   uint8_t _lastStyle = 0xFF;
   uint8_t _lastTheme = 0xFF;
 };

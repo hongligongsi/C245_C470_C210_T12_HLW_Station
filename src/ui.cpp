@@ -517,6 +517,87 @@ void Ui::drawFault() {
 }
 
 // ---------------------------------------------------------------------------
+// 全屏状态页: 无工具 / 换芯 / 休眠
+// 三者互斥并覆盖主页(优先级 故障 > 无工具 > 换芯 > 休眠), 只在状态切入时整屏
+// 绘制一次; 页内动态量(休眠时的当前温度)单独按值缓存重绘, 避免软 SPI 刷整屏
+// ---------------------------------------------------------------------------
+void Ui::drawStatePage(const char *title, uint16_t titleCol, const char *sub,
+                       const char *hint) {
+#if LCD_W >= 200
+  const uint8_t ts = 3, ss = 2, hs = 1; // 汉字 36px / 24px / 12px
+#else
+  const uint8_t ts = 2, ss = 1, hs = 1; // 小屏: 24px / 12px
+#endif
+  const int16_t th = 12 * ts, sh = 12 * ss;
+  int16_t total = th + sh + 26 + (hint ? 12 : 0);
+  int16_t y = (int16_t)((LCD_H - total) / 2);
+  if (y < 2)
+    y = 2;
+
+  int16_t w = Lcd.textWidth(title, ts, ts);
+  Lcd.drawText((LCD_W - w) / 2, y, title, titleCol, Pal.bg, ts, ts);
+  y += th + 13;
+
+  w = Lcd.textWidth(sub, ss, ss);
+  Lcd.drawText((LCD_W - w) / 2, y, sub, Pal.fg, Pal.bg, ss, ss);
+  y += sh + 13;
+
+  if (hint) {
+    w = Lcd.textWidth(hint, hs, hs);
+    Lcd.drawText((LCD_W - w) / 2, y, hint, Pal.grid, Pal.bg, hs, hs);
+  }
+}
+
+void Ui::drawNoTipPage() {
+  drawStatePage("无工具", Pal.danger, "请插入手柄", "插入后自动识别");
+}
+
+void Ui::drawTipChangePage() {
+#if LCD_W >= 200
+  drawStatePage("换芯中", Pal.warn, "加热已停止", "装好烙铁头后自动恢复");
+#else
+  drawStatePage("换芯中", Pal.warn, "加热已停止", "装好自动恢复");
+#endif
+}
+
+void Ui::drawSleepPage() {
+  _lastSleepTemp = 0x7FFF; // 强制下面的温度行重画
+#if LCD_W >= 200
+  drawStatePage("已休眠", Pal.info, "旋转或短按唤醒", nullptr);
+#else
+  drawStatePage("已休眠", Pal.info, "旋转唤醒", nullptr);
+#endif
+  drawSleepTemp();
+}
+
+// 休眠页当前温度: 只在整数温度变化时重绘一行
+void Ui::drawSleepTemp() {
+  int16_t v = (int16_t)(Stn.tipTemp() + 0.5f);
+  if (v == _lastSleepTemp)
+    return;
+  _lastSleepTemp = v;
+
+#if LCD_W >= 200
+  const uint8_t sc = 2;
+  const int16_t h = 7 * sc;
+#else
+  const uint8_t sc = 1;
+  const int16_t h = 7 * sc;
+#endif
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%d%cC", (int)v, FONT_DEG);
+  int16_t w = Lcd.textWidth(buf, sc, 1);
+#if LCD_W >= 200
+  int16_t y = LCD_H - h - 26;
+#else
+  int16_t y = LCD_H - h - 12;
+#endif
+  // 先清一贯穿整屏的横条, 再居中写字(旧数字比新数字宽时不会留残影)
+  Lcd.fillRect(0, y - 2, LCD_W, h + 4, Pal.bg);
+  Lcd.drawText((LCD_W - w) / 2, y, buf, Pal.info, Pal.bg, sc, 1);
+}
+
+// ---------------------------------------------------------------------------
 // 曲线风格主页: 绿线=功率%, 蓝线=温度
 // ---------------------------------------------------------------------------
 void Ui::pushHistory() {
@@ -1065,7 +1146,19 @@ void Ui::update() {
     _lastPage = 0xFF;
   }
 
-  uint8_t page = (Stn.mode() == MODE_FAULT) ? 1 : 0;
+  // 页面分派: 0=主页 1=故障 2=无工具 3=换芯 4=休眠
+  // 后三者是独立全屏状态页, 只有状态切换时才整屏重绘
+  // 优先级: 故障 > 换芯 > 无工具 > 休眠
+  // (换芯时用户通常会拔下烙铁头, 此时显示"换芯中"比"无工具"更有指导意义)
+  uint8_t page = 0;
+  if (Stn.mode() == MODE_FAULT)
+    page = 1;
+  else if (Stn.tipSwitchOpen())
+    page = 3;
+  else if (!Stn.tipPresent())
+    page = 2;
+  else if (Stn.mode() == MODE_SLEEP)
+    page = 4;
   if (page != _lastPage) {
     Lcd.clear(Pal.bg);
     if (page == 0) {
@@ -1133,8 +1226,23 @@ void Ui::update() {
     }
 #endif
     drawFooter();
-  } else {
+  } else if (page == 1) {
     drawFault();
+  } else if (page == 2) {
+    drawNoTipPage();
+  } else if (page == 3) {
+    drawTipChangePage();
+  } else {
+    drawSleepPage();
+  }
+
+  // 休眠页: 温度是唯一动态量, 每 500ms 检查一次(值变了才重绘那一行)
+  if (page == 4) {
+    static uint32_t s_sleepMs = 0;
+    if (now - s_sleepMs >= 500) {
+      s_sleepMs = now;
+      drawSleepTemp();
+    }
   }
 
   Lcd.present();
