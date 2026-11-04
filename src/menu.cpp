@@ -245,7 +245,7 @@ void Menu::exit() {
 }
 
 void Menu::pushLevel(const MenuItem *items, uint8_t count, const char *title) {
-  if (_depth >= 4)
+  if (_depth >= MENU_MAX_DEPTH)
     return;
   Level &l = _stack[_depth++];
   l.items = items;
