@@ -18,19 +18,19 @@ PID、保护逻辑完全一致，仅"输入设备 / 开机方式"不同。
 
 二、三个固件版本
 --------------------------------------------------
-1) station_encoder_v1.3.1_<hash>.bin
+1) station_encoder_v1.3.1_e410377.bin
    编译环境：hc32f460jeta
    输入设备：EC11 旋转编码器（PA0/PA1/PA2）
    操作方式：旋转调温，短按循环快捷温度，长按进入菜单
    烧录命令：.\flash.ps1
 
-2) station_button_v1.3.1_<hash>.bin
+2) station_button_v1.3.1_e410377.bin
    编译环境：hc32f460jeta-btn
    输入设备：三个按键（加 / 减 / 确认，默认与编码器同座：
              A 脚=加, B 脚=减, C 脚=确认）
    烧录命令：.\flash.ps1 -Button
 
-3) station_auto_v1.3.1_<hash>.bin   （开机即用版 / 无键版）
+3) station_auto_v1.3.1_e410377.bin   （开机即用版 / 无键版）
    编译环境：hc32f460jeta-auto
    输入设备：无。PA0/PA1/PA2 不初始化、不上拉、不扫描，完全交给外部电路/悬空
    开机行为：上电自动进入开机状态，直接加热到「开机温度」（出厂 350°C）
